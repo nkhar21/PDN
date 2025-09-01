@@ -1,0 +1,553 @@
+Title WorkflowKey = 0x100000067 - LayoutWorkbench file for version 2000.20
+* Layout Workbench 24.1.0.10141.541387   000
+
+* Please do NOT edit special void criteria manually.
+.DropShapesOfUnselectedNets
+.ViaAntipadSearchFactor = 0.000000
+.ViaAntipadDistanceRangeFactor = 1.000000
+
+* Transient description line
+.Transient FinalTime = 0.216817ns Timesteps = 220 Viewstep = 1
++          DT = 2.16817e-12
+
+* External Circuit Solver description lines
+
+* Mesh description line
+
+* External Material File description line
+
+* Package description lines
+.Package $Package
+
+* Stackup description lines
+
+* Zone description lines
+
+* Shape description lines
+.Shape Shape001
+Box001+ -5.000000e+01mm -5.000000e+01mm 1.000000e+02mm 1.000000e+02mm
+.EndShape
+
+.Shape Shape002
+Box002+ -5.000000e+01mm -5.000000e+01mm 1.000000e+02mm 1.000000e+02mm
+.EndShape
+
+.Shape Shape003
+Box03+ 0.000000e+00mm 0.000000e+00mm 5.000000e+01mm 5.000000e+01mm
+.EndShape
+
+.Shape Shape004
+Box02+ -5.000000e+01mm -5.000000e+01mm 1.000000e+02mm 1.000000e+02mm
+.EndShape
+
+.Shape ShapeSignal01
+Box2::pwr+ 0.000000e+00mm 0.000000e+00mm 5.000000e+01mm 5.000000e+01mm
+.EndShape
+
+.Shape ShapeSignal02
+Box1::gnd+ 0.000000e+00mm 0.000000e+00mm 5.000000e+01mm 5.000000e+01mm
+Circle04::gnd- Sub-element 1.155170e+01mm 2.795620e+01mm 9.928000e-01mm
+Circle01::gnd- Sub-element 5.292000e+00mm 2.795620e+01mm 1.012100e+00mm
+.EndShape
+
+.Shape ShapeSignal03
+Box4::gnd+ 0.000000e+00mm 0.000000e+00mm 5.000000e+01mm 5.000000e+01mm
+Circle05::gnd- ViaHole_A Sub-element 1.155170e+01mm 2.795620e+01mm 3.477000e-01mm
+Circle06::gnd- ViaHole_A Sub-element 5.292000e+00mm 2.795620e+01mm 3.537000e-01mm
+.EndShape
+
+.Shape ShapeSignal04
+Box3::gnd+ 0.000000e+00mm 0.000000e+00mm 5.000000e+01mm 5.000000e+01mm
+.EndShape
+
+UnionizedShape = 78A88B72-46EEE5F9-C74AD63D-BD93BAC7
+
+* CuttingBoundary description lines
+
+* Layer description lines
+Signal01 DielectricMaterial = [AIR] Color = 0x00A000
+PatchSignal01 Shape = ShapeSignal02 Layer = Signal01
+Medium01 Permittivity = 3.300000e+00 LossTangent = 0.000000e+00
+Signal02 DielectricMaterial = [FillSignal02_Average]
+PatchSignal02 Shape = ShapeSignal01 Layer = Signal02
+Medium02 Permittivity = 3.300000e+00 LossTangent = 0.000000e+00
+Signal03 DielectricMaterial = [FillSignal03_Average] Color = 0x00A9A9
+PatchSignal03 Shape = ShapeSignal04 Layer = Signal03
+Medium03 Permittivity = 4.000000e+00 LossTangent = 0.000000e+00
+Signal04 DielectricMaterial = [AIR] Color = 0x00E7E7
+PatchSignal04 Shape = ShapeSignal03 Layer = Signal04
+
+* ConformalLayer description lines
+
+* Node description lines
+Node010::pwr X = 1.155170e+01mm Y = 2.795620e+01mm Layer = Signal02
+Node011::pwr X = 1.155170e+01mm Y = 2.795620e+01mm Layer = Signal04
+Node012::gnd X = 1.155170e+01mm Y = 2.207420e+01mm Layer = Signal01
+Node013::gnd X = 1.155170e+01mm Y = 2.207420e+01mm Layer = Signal03
+Node014::gnd X = 1.155170e+01mm Y = 2.207420e+01mm Layer = Signal04
+Node03::pwr X = 5.292000e+00mm Y = 2.795620e+01mm Layer = Signal01
+Node04::pwr X = 5.292000e+00mm Y = 2.795620e+01mm Layer = Signal02
+Node05::pwr X = 5.292000e+00mm Y = 2.795620e+01mm Layer = Signal04
+Node06::gnd X = 5.292000e+00mm Y = 2.207420e+01mm Layer = Signal01
+Node07::gnd X = 5.292000e+00mm Y = 2.207420e+01mm Layer = Signal03
+Node08::gnd X = 5.292000e+00mm Y = 2.207420e+01mm Layer = Signal04
+Node09::pwr X = 1.155170e+01mm Y = 2.795620e+01mm Layer = Signal01
+
+* Trace description lines
+
+* Via description lines
+Via01::pwr UpperNode = Node03::pwr LowerNode = Node04::pwr PadStack = ~DefaultPadStack
+Via02::gnd UpperNode = Node06::gnd LowerNode = Node07::gnd PadStack = ~DefaultPadStack
+Via03::pwr UpperNode = Node09::pwr LowerNode = Node010::pwr PadStack = ~DefaultPadStack
+Via04::gnd UpperNode = Node012::gnd LowerNode = Node013::gnd PadStack = ~DefaultPadStack
+Via05::pwr UpperNode = Node04::pwr LowerNode = Node05::pwr PadStack = ~DefaultPadStack
+Via06::gnd UpperNode = Node07::gnd LowerNode = Node08::gnd PadStack = ~DefaultPadStack
+Via07::pwr UpperNode = Node010::pwr LowerNode = Node011::pwr PadStack = ~DefaultPadStack
+Via08::gnd UpperNode = Node013::gnd LowerNode = Node014::gnd PadStack = ~DefaultPadStack
+
+* WirebondDefination description lines
+.WireBondModel Diameter = 2.540000e-02mm Conductivity = 4.100000e+07 Er = 3.000000
+.EndWirebondModel
+
+* WirebondGroup description lines
+
+* LeadframeDefination description lines
+
+* LeadframeGroup description lines
+
+* PadStack collection description lines
+.PadStackDef ~DefaultPadStack 2.000000e-01mm
+.EndPadStackDef
+
+* CoupleLine description lines
+
+* Material description lines
+.Material
+.DielectricModel [AIR]
+*Frequency(MHz) Permittivity LossTangent
+1.000000e+03 1.000000e+00 0.000000e+00
+.EndDielectricModel
+
+.ThermalModel [AIR]
+*Temperature(C) Conductivity(W/(m.K)) Density(kg/m3) Heatcapacity(J/(kg.K)) Emissivity SolarReflectance
+2.700000e+01 2.670000e-02 1.177000e+00 1.005000e+03 0.000000e+00 0.000000e+00
+3.700000e+01 2.740000e-02 1.141000e+00 1.005000e+03 0.000000e+00 0.000000e+00
+4.700000e+01 2.810000e-02 1.106000e+00 1.006000e+03 0.000000e+00 0.000000e+00
+5.700000e+01 2.870000e-02 1.073000e+00 1.006000e+03 0.000000e+00 0.000000e+00
+6.700000e+01 2.940000e-02 1.042000e+00 1.007000e+03 0.000000e+00 0.000000e+00
+7.700000e+01 3.000000e-02 1.012000e+00 1.007000e+03 0.000000e+00 0.000000e+00
+8.700000e+01 3.060000e-02 9.830000e-01 1.007000e+03 0.000000e+00 0.000000e+00
+9.700000e+01 3.130000e-02 9.560000e-01 1.008000e+03 0.000000e+00 0.000000e+00
+1.070000e+02 3.190000e-02 9.310000e-01 1.008000e+03 0.000000e+00 0.000000e+00
+1.170000e+02 3.250000e-02 9.060000e-01 1.009000e+03 0.000000e+00 0.000000e+00
+1.270000e+02 3.310000e-02 8.830000e-01 1.009000e+03 0.000000e+00 0.000000e+00
+2.270000e+02 3.890000e-02 7.060000e-01 1.017000e+03 0.000000e+00 0.000000e+00
+.EndThermalModel
+
+.DielectricModel [FillSignal02_Average]
+*Frequency(MHz) Permittivity LossTangent
+1.000000e+03 3.300000e+00 0.000000e+00
+.EndDielectricModel
+
+.DielectricModel [FillSignal03_Average]
+*Frequency(MHz) Permittivity LossTangent
+1.000000e+03 3.650000e+00 0.000000e+00
+.EndDielectricModel
+.EndMaterial
+
+* SurfaceRoughness description lines
+
+* Outline description lines
+
+* TabDefination description lines
+
+* XHatch description lines
+
+* DielectricBlock description lines
+
+* Bending description lines
+
+* ThermalBlock description lines
+.EndPackage
+
+* CuttingZone description lines
+
+* Circuit description lines
+.PartialCkt    CAP
++    ExtNode = 1    2
+.EndPartialCkt
+
+.PartialCkt    Ic
++    ExtNode = 1    2
+.EndPartialCkt
+
+.PartialCkt    NewEmptyCktDef
+
+
+.EndPartialCkt
+
+* Component description lines
+.Connect decap_port1 CAP Usage = 0b1000 Checked = 1
+1 $Package.Node05::pwr
+2 $Package.Node08::gnd
+.EndC
+
+.Connect decap_port2 CAP Usage = 0b1000 Checked = 1
+1 $Package.Node011::pwr
+2 $Package.Node014::gnd
+.EndC
+
+.Connect ic_port Ic Usage = 0b1000 Checked = 1
+1 $Package.Node03::pwr
+1 $Package.Node09::pwr
+2 $Package.Node012::gnd
+2 $Package.Node06::gnd
+.EndC
+
+* Component collection description lines
+.CompCollection
+
+* Footprint description lines
+
+* Fanout description lines
+
+* ComponentDefination description lines
+
+* Component description lines
+
+* ComponentPattern description lines
+.EndCompCollection
+
+* SweepParam description lines
+
+* OptiParam description lines
+
+* DieStack description lines
+
+* Ratsnest description lines
+
+* ViaModel description lines
+
+* SimCircuitVoltage description lines
+
+* Sim3DVoltage description lines
+
+* Sim3DCurrent description lines
+
+* SimLayoutVoltage description lines
+
+* SimCurrent description lines
+
+* SimDistribute description lines
+
+* SignalEP Setup description lines
+
+* Configuration description lines
+.Configuration
+* Polygon Simplification Threshold
++            Percentage = 0.001
++            Multiplier = 5
+* Trace Shape Conversion
++            Trace_Path_Length = 0.0003
+* Floating Operation Precision
++            Calc_Precision = 3e-12
++            Calc_Precision_For_Square = 5e-20
++            Compare_Precision = 1e-09
+* Settings
++            SmallHole_Deletion_Factor = 0.00333
++            TracePolygon_Threshold = 1e-06
++            Arc_Discretization_Precision = 0.0002
++            Remove_Slender_Hole = 1
+* Tool Options
++            Percent_of_processors = 100
++            ProcessPriority = 32
++            Auto_save_simulation_result_into_file = 1
++            Automatically_output_enforced_passive_results = 0
++            Auto_save_result_file_format = 2
++            Auto_Save_Partial_Matrix_Results = 0
++            Auto_check_S_parameter = 0
++            Auto_Save_Distribution = 0
++            CktNode_Includ_NetName = 0
+* Via Shape Connection
++            ViaShapeConnection = 0
++            Check_for_Dependency_Version = 0
+* Warning/Error Checking
++            Check_for_Floating_Nodes = 0
++            Check_for_Node_Placement = 1
++            Check_for_Via_Placement = 1
++            Check_for_Short_Circuits = 0
++            Check_for_Open_Circuits = 0
++            Popup_WaringMsg_for_Short_Circuits = 1
++            Present_Flip_Info = 1
++            S_param_freq_range_out_of_simulation_range = -1
++            Check_for_Geometry_Error = 0
++            Unit = mm
++            SnapToGrid = 0
++            XGridSize = 1
++            YGridSize = 1
++            ObjectOutline_Color = GRAY
++            LayerColorOpacity = 50
++            RulerFont = F5FFFFFF000000000000000000000000900100000000000003020122417269616C000000000000000000000000000000000000000000000000000000
+
+* Pulse Response Setting description lines
+
+* PowerSI Setup description lines
+.PowerSI
+.MaxEdgeLength = 2.500000e-03
+.ReferenceImpedance = 5.000000e+01
+.ReferenceImpedance2 = 5.000000e+01
+.DC_BBS_Setting DCFitted = 0 BBSFitted = 0 PDCEqualPotential = 0
+
+* FrequencyBand description lines
+.FrequencySweep 1.000000e-02MHz 2.000000e+00GHz 0 Adaptive
+
+* Resonance Setup description lines
+
+* Port description lines
+.Port
+Port1_ic_port::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="Ic"
++            PositiveTerminal $Package.Node03::pwr $Package.Node09::pwr
++            NegativeTerminal $Package.Node012::gnd $Package.Node06::gnd
+Port2_decap_port1_1::pwr Auto GenFromCktInstance="decap_port1" GenFromCktModel="CAP"
++            PositiveTerminal $Package.Node05::pwr
++            NegativeTerminal $Package.Node08::gnd
+Port3_decap_port2_1::pwr Auto GenFromCktInstance="decap_port2" GenFromCktModel="CAP"
++            PositiveTerminal $Package.Node011::pwr
++            NegativeTerminal $Package.Node014::gnd
+.EndPort
+
+* Extraction Setting description lines
+
+* Wave3D Setting description lines
+.Wave3D
+
+* ViaStructure description lines
+
+* Frequency Sweeping description lines
+.FrequencySweep 1.000000e+01MHz 1.000000e+00GHz 1.000000e+01MHz Linear
+.FrequencyNew 1.000000e+04 2.000000e+09 2
+.DisplayFrequencyArray
+.SolutionFrequency 1.000000e+09
+
+* Boundary description lines
+.MetalType 4
+.OuterBoxSize 1.500000e-02 1.500000e-02 1.500000e-02 1.500000e-02 1.684480e-03 1.684480e-03
+
+* Mesh description lines
+.MeshAlgorithm 4 PolygonSimplificationType = 1 SignalNetsRefinements = 1 BalanceMeshDensityDuringAMR = TRUE WaveportEdgeBoundaryConditions = 1
+
+* Cut description lines
+
+* Fiber Weave description lines
+
+* SimW3DVoltageProb description lines
+
+* Special Voids description lines
+
+* Multi-Terminal circuit parameter setting description lines
+
+* SimW3DSurfaceT description lines
+.EndWave3D
+
+* 3DEMCap Setting description lines
+.3DEMCap
+.SimuOptionSettings
++            MeshAlgorithm = 4 PolygonSimplificationType = 0 SignalNetsRefinements = 1
++            dxp = 0.0707297
++            dxm = 0.0707297
++            dyp = 0.0707297
++            dym = 0.0707297
++            dzp = 0.0707297
++            dzm = 0.0707297
+.EndSimuOptionSettings
+.End3DEMCap
+
+* 3DEMInd Setting description lines
+.3DEMInd
+.SimuOptionSettings
++            MeshAlgorithm = 4 PolygonSimplificationType = 0 SignalNetsRefinements = 1
++            MetalType = 1
++            dxp = 0.1
++            dxm = 0.1
++            dyp = 0.1
++            dym = 0.1
++            dzp = 0.1
++            dzm = 0.1
+.EndSimuOptionSettings
+
+* Frequency Sweeping description lines
+.FrequencySweep 1.000000e-03MHz 5.000000e-01GHz 10 Log
+
+* SourceSink description lines
+
+.End3DEMInd
+.EndPowerSI
+
+* SPEED2000 Setup description lines
+.SPEED2000
+
+* SimESD description lines
+
+* SimTDR/TDT description lines
+
+* SimSIMetricsLink description lines
+
+* SimSIMetricsXCall description lines
+
+* SimSIMetricsSetup description lines
+
+* SimDDR description lines
+
+* BusGroup description lines
+
+* PowerSupply description lines
+
+* DriverNet description lines
+
+* SimSignalPins description lines
+
+* SimGeneralSI description lines
+
+* RMS current description lines
+.EndSPEED2000
+
+* NetGroup description lines
+
+* XtractIM Setup description lines
+.XtractIM NetNameIncludedInCktNodeName = 0
+.EndXtractIM
+
+* PowerDC Setup description lines
+.PowerDC PlotResolution = 0.00025 MeshX = 200 MeshY = 200 SimulationType = 1
+.TreatPadAsShape Type = 2 ConnectObject = 1 CheckIgnorePinSize = 1 NodeGapForPad = 5.08e-05 MinNodeNumForPad = 6
+.SignOffReportSetting VerticalRangeScale = 85
+.ExportDistribution2TxtSetting AllInOneLayer = 0
+
+* PowerLoss description lines
+
+* PdcElem description lines
+.SpiceNetlist Name = "SPICENetlist"
+.EndSpiceNetlist
+
+* ConstraintDisc description lines
+
+* ConstraintVia description lines
+
+* ConstraintPad description lines
+
+* ConstraintSizePlating description lines
+
+* ConstraintMetal description lines
+
+* ConstraintMetalArea description lines
+
+* ConstraintTrace description lines
+
+* ConstraintLayer description lines
+
+* ConstraintLayerArea description lines
+
+* ConstraintMetalLayerThick description lines
+
+* VRMGroup description lines
+.EndPowerDC
+
+* Celsius Setup description lines
+.Celsius
+.AmbientConditions AirVelocity = 0
+.EndAmbientConditions
+.ThermalConstraints Constraints = 95
+.ThermalSimulationSetting MaxMeshEdgeLength = 0.0025
+
+* TerminalPair description lines
+.EndThermalSimulationSetting
+
+* ConductArea description lines
+
+* HeatSink description lines
+
+* PkgDie description lines
+
+* ProbeNode description lines
+
+* ProbeVia description lines
+
+* ProbeTrace description lines
+
+* NetworkTerminal description lines
+.EndCelsius
+
+* OptimizePI Setup description lines
+.OptimizePI MeshLength = -1
+
+* CircuitModel description lines
+
+* Classify description lines
+.AutoClassifyType Name = "Distance to Power Pin" Type = 1 Distance = 1.000000e+01
+.AutoClassifyType Name = "Setback Distance" Type = 2 Distance = 5.000000e+00
+
+* CurveProp description lines
+.CurveProperty Name = "Impedance" Type = 2
+.Curve Type = 0 Color = DEEPSKYBLUE
+.Curve Type = 1 Color = DARKMAGENTA
+.Curve Type = 2 Color = DEEPSKYBLUE
+.Curve Type = 3 Color = DARKMAGENTA
+.EndCurveProperty
+.CurveProperty Name = "Target Z"
+.Curve Type = 0 Color = 0xFF4616
+.Curve Type = 1 Color = 0xFF4616
+.Curve Type = 2 Color = 0xFF4616
+.Curve Type = 3 Color = 0xFF4616
+.EndCurveProperty
+.CurveProperty Name = "VRM" Type = 1
+.Curve Type = 0 Color = 0xA020F0
+.Curve Type = 1 Color = HOTPINK
+.Curve Type = 2 Color = 0xA020F0
+.Curve Type = 3 Color = HOTPINK
+.EndCurveProperty
+
+* McpProp description lines
+
+* PowerModel description lines
+.PostLayoutSetup
+.FrequencySetup StartRange = 100000 EndRange = 1e+09
+.EndFrequencySetup
+.WhatIfSetup Name = WhatIfDefault
+.EndWhatIfSetup
+.StatisticalSetup Name = StatisticalDefault
+.EndStatisticalSetup
+.EndPostLayoutSetup
+.TargetImpOptSetup
+.FrequencySetup StartTime = 0
+.EndFrequencySetup
+.ICRLRange Auto = 1
+.ICRLRange Type = 1 Auto = 1
+.EndTargetImpOptSetup
+.PreLayoutSetup DoWhatIf = 1
+.FrequencySetup StartRange = 100000 EndRange = 1e+09
+.EndFrequencySetup
+.OptiFreqSetup StartRange = 100000 EndRange = 1e+08
+.EndOptiFreqSetup
+.WhatIfSetup Name = WhatIfDefault
+.EndWhatIfSetup
+.EndPreLayoutSetup
+.EndOptimizePI
+
+* Net description lines
+.NetList
+	::Unselected RiseTime = 0ps %Coupling = 0
+	GroundNets Color = LIME
+	PowerNets Color = RED
+	gnd -> GroundNets Color = LIME
+	pwr -> PowerNets Color = RED
+.EndNetList
+NetListFlag = B8507A85-AC9FB3A5-264C3F29-2D555E1D
+
+* DiffChannel description lines
+
+* NetAlias description lines
+
+* Guides description lines
+
+* Design rules/Clearances description lines
+.End
