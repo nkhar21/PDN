@@ -25,6 +25,17 @@ class Board:
         self.ic_via_loc = np.array([])        
         self.decap_via_loc = np.array([])
 
+################################################# nk 
+import re
+
+def canon_node(name: str) -> str:
+    m = re.match(r'(Node)(\d+)$', name)
+    if m:
+        # Strip leading zeros: 'Node013' -> 'Node13'
+        return m.group(1) + str(int(m.group(2)))
+    return name
+#################################################
+
 #Reorders PWR and GND vias in alternating sequence and computes location flags based on via type and layer info.
 def reorder_pwr_gnd_alternating_csv(xy_array, type_array,
                                      port_num=None, start_layers=None, stop_layers=None,
@@ -73,20 +84,38 @@ def reorder_pwr_gnd_alternating_csv(xy_array, type_array,
 def parse_input(brd, via_spd_path=None, via_csv_path=None):
 
     def extract_start_stop_layers_strict_order(via_lines, node_info, ic_blocks, decap_blocks):
-        def find_via_by_node(node, search_upper=True):
+        # def find_via_by_node(node, search_upper=True):
+        #     for upper, lower in via_lines:
+        #         if search_upper and upper == node:
+        #             return node_info[upper]['layer'], node_info[lower]['layer'], upper, lower
+        #         elif not search_upper and lower == node:
+        #             return node_info[upper]['layer'], node_info[lower]['layer'], upper, lower
+        #     return None
+
+        def find_via_by_node(node, search_upper=True): ######################## nk
             for upper, lower in via_lines:
-                if search_upper and upper == node:
-                    return node_info[upper]['layer'], node_info[lower]['layer'], upper, lower
-                elif not search_upper and lower == node:
-                    return node_info[upper]['layer'], node_info[lower]['layer'], upper, lower
-            return None
+                if (search_upper and upper == node) or (not search_upper and lower == node):
+                    if (upper in node_info) and (lower in node_info):
+                        return node_info[upper]['layer'], node_info[lower]['layer'], upper, lower
+            return None 
 
         def process_blocks(blocks, is_ic=True):
             results = []
             for block in blocks:
                 lines = block.strip().splitlines()
-                plus_nodes = [re.search(r"\$Package\.(Node\d+)", l).group(1) for l in lines if l.strip().startswith("1")]
-                minus_nodes = [re.search(r"\$Package\.(Node\d+)", l).group(1) for l in lines if l.strip().startswith("2")]
+                #plus_nodes = [re.search(r"\$Package\.(Node\d+)", l).group(1) for l in lines if l.strip().startswith("1")]
+                #minus_nodes = [re.search(r"\$Package\.(Node\d+)", l).group(1) for l in lines if l.strip().startswith("2")]
+                
+                ######################################### nk
+                plus_nodes = [
+                    canon_node(re.search(r"\$Package\.(Node\d+)", l).group(1))
+                    for l in lines if l.strip().startswith("1")
+                ]
+                minus_nodes = [
+                    canon_node(re.search(r"\$Package\.(Node\d+)", l).group(1))
+                    for l in lines if l.strip().startswith("2")
+                ]
+                #########################################
 
                 for p_node, m_node in zip(plus_nodes, minus_nodes):
                     # + via
@@ -215,6 +244,10 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
             } for n in node_lines
         }
 
+        # Canonicalize node keys (e.g., 'Node013' → 'Node13') and store both - nk
+        for k, v in list(node_info.items()):
+            node_info[canon_node(k)] = v
+
         component_section = re.search(r"\* Component description lines(.*?)\*", content, re.DOTALL)
         component_block = component_section.group(1) if component_section else ""
 
@@ -228,23 +261,43 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
         ic_node_ids = [f"Node{id}" for id in ic_node_ids]
         decap_node_ids = [f"Node{id}" for id in decap_node_ids]
 
-        ic_dict = {}
+        ########################################################
+        # Create ic_dict to group IC vias by coordinates - Old version
+        # ic_dict = {}
+        # for node in ic_node_ids:
+        #     if node in node_info:
+        #         info = node_info[node]
+        #         key = (round(info['x'], 6), round(info['y'], 6))
+        #         if key not in ic_dict:
+        #             ic_dict[key] = {'type': info['type'], 'layers': set()}
+        #         ic_dict[key]['layers'].add(info['layer'])
+
+        # brd.ic_via_xy = np.array([[x * 1e-3, y * 1e-3] for x, y in ic_dict])
+        # brd.ic_via_type = np.array([v['type'] for v in ic_dict.values()])
+        # if len(brd.ic_via_xy) > 0:
+        #     ic_sorted_idx = np.lexsort((-brd.ic_via_xy[:, 1], brd.ic_via_xy[:, 0]))
+        #     brd.ic_via_xy = brd.ic_via_xy[ic_sorted_idx]
+        #     brd.ic_via_type = brd.ic_via_type[ic_sorted_idx]
+
+        # New version: preserve order and include duplicates - NK
+        ic_xy_list, ic_type_list = [], []
         for node in ic_node_ids:
             if node in node_info:
                 info = node_info[node]
-                key = (round(info['x'], 6), round(info['y'], 6))
-                if key not in ic_dict:
-                    ic_dict[key] = {'type': info['type'], 'layers': set()}
-                ic_dict[key]['layers'].add(info['layer'])
+                ic_xy_list.append([info['x'] * 1e-3, info['y'] * 1e-3])
+                ic_type_list.append(info['type'])
+        brd.ic_via_xy   = np.array(ic_xy_list)
+        brd.ic_via_type = np.array(ic_type_list)
+        ######################################################## 
 
-        brd.ic_via_xy = np.array([[x * 1e-3, y * 1e-3] for x, y in ic_dict])
-        brd.ic_via_type = np.array([v['type'] for v in ic_dict.values()])
-        if len(brd.ic_via_xy) > 0:
-            ic_sorted_idx = np.lexsort((-brd.ic_via_xy[:, 1], brd.ic_via_xy[:, 0]))
-            brd.ic_via_xy = brd.ic_via_xy[ic_sorted_idx]
-            brd.ic_via_type = brd.ic_via_type[ic_sorted_idx]
-
-        via_lines = re.findall(r"Via\d+::\w+\s+UpperNode\s*=\s*(Node\d+)(?:::)?\w*\s+LowerNode\s*=\s*(Node\d+)(?:::)?\w*", content)
+        via_lines = re.findall(r"Via\d+::\w+\s+UpperNode\s*=\s*(Node\d+)(?:::)?\w*\s+LowerNode\s*=\s*(Node\d+)(?:::)?\w*", content, flags=re.IGNORECASE)
+        
+        ################################################# nk
+        via_lines = [(canon_node(u), canon_node(l)) for (u, l) in via_lines]
+        missing = [n for pair in via_lines for n in pair if n not in node_info]
+        if missing:
+            print("[WARN] VIA references missing Node(s):", sorted(set(missing)))
+        
         brd.start_layers, brd.stop_layers, brd.via_type = extract_start_stop_layers_strict_order(via_lines, node_info, ic_blocks, decap_blocks)
         brd.start_layers -= 1
         brd.stop_layers -= 1
@@ -411,13 +464,14 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
                 'index': idx
             })
 
-        # Combine merged and unmerged vias, then sort by index
-        combined = original_data + merged_results
-        combined.sort(key=lambda x: x['index'])
+        # Combine merged and unmerged vias, then sort by index - nk commented out
+        #combined = original_data + merged_results
+        #combined.sort(key=lambda x: x['index'])
 
-        brd.start_layers = np.array([v['start'] for v in combined])
-        brd.stop_layers = np.array([v['stop'] for v in combined])
-        brd.via_type     = np.array([v['type'] for v in combined])
+        #brd.start_layers = np.array([v['start'] for v in combined])
+        #brd.stop_layers = np.array([v['stop'] for v in combined])
+        #brd.via_type     = np.array([v['type'] for v in combined])
+        ##################################################################
 
         all_layers = [v['layer'] for v in node_info.values()]
         max_layer = max(all_layers)
@@ -687,7 +741,8 @@ def gen_brd_data(
     brd,
     via_spd_path=via_spd_path,
     via_csv_path=via_csv_path,
-)
+    )
+    
 
     # Safely unpack depending on the presence of buried vias
     if len(result) == 8:
@@ -712,7 +767,7 @@ def gen_brd_data(
     brd.sxy = np.concatenate(
     [brd.seg_bd_node(single_bxy, d) for single_bxy in brd.bxy],
     axis=0
-)
+    )
 
     brd.sxy = [brd.seg_bd_node(single_bxy, d) for single_bxy in brd.bxy]
    
@@ -915,7 +970,7 @@ def save2s(self, z, filename, path, z0=50):
 
 if __name__ == '__main__':
 
-    N = 1
+    N = 1 
     BASE_PATH = 'output/'
     if not os.path.exists(BASE_PATH):
         os.mkdir(BASE_PATH)
