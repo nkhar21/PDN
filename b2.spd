@@ -41,11 +41,11 @@ Polygon1+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+
 .EndShape
 
 .Shape ShapeSignal01
-Polygon1::grd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
+Polygon1::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
 +            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
-Circle5::grd- ViaHole_A Sub-element 4.000000e+00mm 1.000000e+01mm 5.000000e-01mm
-Circle05::grd- ViaHole_A Sub-element 4.000000e+00mm 1.400000e+01mm 5.000000e-01mm
-Circle01::grd- ViaHole_A Sub-element 2.400000e+01mm 1.800000e+01mm 5.000000e-01mm
+Circle5::gnd- ViaHole_A Sub-element 4.000000e+00mm 1.000000e+01mm 5.000000e-01mm
+Circle05::gnd- ViaHole_A Sub-element 4.000000e+00mm 1.400000e+01mm 5.000000e-01mm
+Circle01::gnd- ViaHole_A Sub-element 2.400000e+01mm 1.800000e+01mm 5.000000e-01mm
 .EndShape
 
 .Shape ShapeSignal02
@@ -54,28 +54,28 @@ Polygon2::pwr+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000
 .EndShape
 
 .Shape ShapeSignal03
-Polygon3::grd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
+Polygon3::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
 +            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
 .EndShape
 
 .Shape ShapeSignal04
-Polygon4::grd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
+Polygon4::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
 +            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
 .EndShape
 
 .Shape ShapeSignal05
-Polygon5::grd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
+Polygon5::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
 +            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
 .EndShape
 
 .Shape ShapeSignal06
-Polygon6::grd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
+Polygon6::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
 +            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
-Circle4::grd- ViaHole_A Sub-element 2.400000e+01mm 9.000000e+00mm 5.000000e-01mm
-Circle2::grd- ViaHole_A Sub-element 2.400000e+01mm 1.800000e+01mm 5.000000e-01mm
+Circle4::gnd- ViaHole_A Sub-element 2.400000e+01mm 9.000000e+00mm 5.000000e-01mm
+Circle2::gnd- ViaHole_A Sub-element 2.400000e+01mm 1.800000e+01mm 5.000000e-01mm
 .EndShape
 
-UnionizedShape = A64C4FBB-5EB5DF41-D45C32A3-06A4994C
+UnionizedShape = A64C4FB7-5AB1DF41-D45832A3-06A4954C
 
 * CuttingBoundary description lines
 
@@ -102,46 +102,46 @@ PatchSignal06 Shape = ShapeSignal06 Layer = Signal06
 
 * Node description lines
 Node010::pwr X = 2.400000e+01mm Y = 9.000000e+00mm Layer = Signal06
-Node011::grd X = 2.600000e+01mm Y = 9.000000e+00mm Layer = Signal05
-Node012::grd X = 2.600000e+01mm Y = 9.000000e+00mm Layer = Signal06
+Node011::gnd X = 2.600000e+01mm Y = 9.000000e+00mm Layer = Signal05
+Node012::gnd X = 2.600000e+01mm Y = 9.000000e+00mm Layer = Signal06
 Node013::pwr X = 4.000000e+00mm Y = 1.400000e+01mm Layer = Signal01
 Node014::pwr X = 4.000000e+00mm Y = 1.400000e+01mm Layer = Signal02
-Node017::grd X = 6.000000e+00mm Y = 1.400000e+01mm Layer = Signal01
-Node018::grd X = 6.000000e+00mm Y = 1.400000e+01mm Layer = Signal03
+Node017::gnd X = 6.000000e+00mm Y = 1.400000e+01mm Layer = Signal01
+Node018::gnd X = 6.000000e+00mm Y = 1.400000e+01mm Layer = Signal03
 Node01::pwr X = 2.400000e+01mm Y = 1.800000e+01mm Layer = Signal01
 Node023::pwr X = 4.000000e+00mm Y = 1.000000e+01mm Layer = Signal01
 Node024::pwr X = 4.000000e+00mm Y = 1.000000e+01mm Layer = Signal02
-Node025::grd X = 1.200000e+01mm Y = 8.000000e+00mm Layer = Signal04
-Node026::grd X = 1.200000e+01mm Y = 8.000000e+00mm Layer = Signal05
+Node025::gnd X = 1.200000e+01mm Y = 8.000000e+00mm Layer = Signal04
+Node026::gnd X = 1.200000e+01mm Y = 8.000000e+00mm Layer = Signal05
 Node02::pwr X = 2.400000e+01mm Y = 1.800000e+01mm Layer = Signal02
-Node04::grd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal01
-Node05::grd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal03
-Node06::grd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal04
-Node07::grd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal05
-Node08::grd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal06
+Node04::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal01
+Node05::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal03
+Node06::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal04
+Node07::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal05
+Node08::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal06
 Node09::pwr X = 2.400000e+01mm Y = 9.000000e+00mm Layer = Signal02
 Node1::pwr X = 2.400000e+01mm Y = 1.800000e+01mm Layer = Signal06
-Node21::grd X = 6.000000e+00mm Y = 1.000000e+01mm Layer = Signal01
-Node22::grd X = 6.000000e+00mm Y = 1.000000e+01mm Layer = Signal03
-Node27::grd X = 1.800000e+01mm Y = 8.000000e+00mm Layer = Signal04
-Node28::grd X = 1.800000e+01mm Y = 8.000000e+00mm Layer = Signal05
+Node21::gnd X = 6.000000e+00mm Y = 1.000000e+01mm Layer = Signal01
+Node22::gnd X = 6.000000e+00mm Y = 1.000000e+01mm Layer = Signal03
+Node27::gnd X = 1.800000e+01mm Y = 8.000000e+00mm Layer = Signal04
+Node28::gnd X = 1.800000e+01mm Y = 8.000000e+00mm Layer = Signal05
 
 * Trace description lines
 
 * Via description lines
 Via010::pwr UpperNode = Node023::pwr LowerNode = Node024::pwr PadStack = ~DefaultPadStack
-Via012::grd UpperNode = Node025::grd LowerNode = Node026::grd PadStack = ~DefaultPadStack
+Via012::gnd UpperNode = Node025::gnd LowerNode = Node026::gnd PadStack = ~DefaultPadStack
 Via01::pwr UpperNode = Node01::pwr LowerNode = Node02::pwr PadStack = ~DefaultPadStack
 Via02::pwr UpperNode = Node02::pwr LowerNode = Node1::pwr PadStack = ~DefaultPadStack
-Via03::grd UpperNode = Node04::grd LowerNode = Node05::grd PadStack = ~DefaultPadStack
-Via04::grd UpperNode = Node05::grd LowerNode = Node06::grd PadStack = ~DefaultPadStack
-Via05::grd UpperNode = Node07::grd LowerNode = Node08::grd PadStack = ~DefaultPadStack
+Via03::gnd UpperNode = Node04::gnd LowerNode = Node05::gnd PadStack = ~DefaultPadStack
+Via04::gnd UpperNode = Node05::gnd LowerNode = Node06::gnd PadStack = ~DefaultPadStack
+Via05::gnd UpperNode = Node07::gnd LowerNode = Node08::gnd PadStack = ~DefaultPadStack
 Via06::pwr UpperNode = Node09::pwr LowerNode = Node010::pwr PadStack = ~DefaultPadStack
-Via07::grd UpperNode = Node011::grd LowerNode = Node012::grd PadStack = ~DefaultPadStack
+Via07::gnd UpperNode = Node011::gnd LowerNode = Node012::gnd PadStack = ~DefaultPadStack
 Via08::pwr UpperNode = Node013::pwr LowerNode = Node014::pwr PadStack = ~DefaultPadStack
-Via09::grd UpperNode = Node017::grd LowerNode = Node018::grd PadStack = ~DefaultPadStack
-Via11::grd UpperNode = Node21::grd LowerNode = Node22::grd PadStack = ~DefaultPadStack
-Via13::grd UpperNode = Node27::grd LowerNode = Node28::grd PadStack = ~DefaultPadStack
+Via09::gnd UpperNode = Node017::gnd LowerNode = Node018::gnd PadStack = ~DefaultPadStack
+Via11::gnd UpperNode = Node21::gnd LowerNode = Node22::gnd PadStack = ~DefaultPadStack
+Via13::gnd UpperNode = Node27::gnd LowerNode = Node28::gnd PadStack = ~DefaultPadStack
 
 * WirebondDefination description lines
 .WireBondModel Diameter = 2.540000e-02mm Conductivity = 4.100000e+07 Er = 3.000000
@@ -247,29 +247,29 @@ Via13::grd UpperNode = Node27::grd LowerNode = Node28::grd PadStack = ~DefaultPa
 .EndPartialCkt
 
 * Component description lines
-.Connect cap_port1 cap Usage = 0b1000 Checked = 1
+.Connect decap_port1 cap Usage = 0b1000 Checked = 1
 1 $Package.Node013::pwr
-2 $Package.Node017::grd
+2 $Package.Node017::gnd
 .EndC
 
-.Connect cap_port2 cap Usage = 0b1000 Checked = 1
+.Connect decap_port2 cap Usage = 0b1000 Checked = 1
 1 $Package.Node023::pwr
-2 $Package.Node21::grd
+2 $Package.Node21::gnd
 .EndC
 
-.Connect cap_port3 cap Usage = 0b1000 Checked = 1
+.Connect decap_port3 cap Usage = 0b1000 Checked = 1
 1 $Package.Node010::pwr
-2 $Package.Node012::grd
+2 $Package.Node012::gnd
 .EndC
 
-.Connect cap_port4 cap Usage = 0b1000 Checked = 1
+.Connect decap_port4 cap Usage = 0b1000 Checked = 1
 1 $Package.Node1::pwr
-2 $Package.Node08::grd
+2 $Package.Node08::gnd
 .EndC
 
 .Connect ic_port ic Usage = 0b1000 Checked = 1
 1 $Package.Node01::pwr
-2 $Package.Node04::grd
+2 $Package.Node04::gnd
 .EndC
 
 * Component collection description lines
@@ -345,6 +345,7 @@ Via13::grd UpperNode = Node27::grd LowerNode = Node28::grd PadStack = ~DefaultPa
 +            Check_for_Short_Circuits = 1
 +            Check_for_Open_Circuits = 1
 +            Popup_WaringMsg_for_Short_Circuits = 1
++            Present_Flip_Info = 1
 +            S_param_freq_range_out_of_simulation_range = -1
 +            Check_for_Geometry_Error = 1
 +            Unit = mm
@@ -371,21 +372,21 @@ Via13::grd UpperNode = Node27::grd LowerNode = Node28::grd PadStack = ~DefaultPa
 
 * Port description lines
 .Port
-Port1_cap_port1_1::pwr Auto GenFromCktInstance="cap_port1" GenFromCktModel="cap"
+Port1_cap_port1_1::pwr
 +            PositiveTerminal $Package.Node013::pwr
-+            NegativeTerminal $Package.Node017::grd
-Port2_cap_port2_1::pwr Auto GenFromCktInstance="cap_port2" GenFromCktModel="cap"
++            NegativeTerminal $Package.Node017::gnd
+Port2_cap_port2_1::pwr
 +            PositiveTerminal $Package.Node023::pwr
-+            NegativeTerminal $Package.Node21::grd
-Port3_cap_port3_1::pwr Auto GenFromCktInstance="cap_port3" GenFromCktModel="cap"
++            NegativeTerminal $Package.Node21::gnd
+Port3_cap_port3_1::pwr
 +            PositiveTerminal $Package.Node010::pwr
-+            NegativeTerminal $Package.Node012::grd
-Port4_cap_port4_1::pwr Auto GenFromCktInstance="cap_port4" GenFromCktModel="cap"
++            NegativeTerminal $Package.Node012::gnd
+Port4_cap_port4_1::pwr
 +            PositiveTerminal $Package.Node1::pwr
-+            NegativeTerminal $Package.Node08::grd
++            NegativeTerminal $Package.Node08::gnd
 Port5_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 +            PositiveTerminal $Package.Node01::pwr
-+            NegativeTerminal $Package.Node04::grd
++            NegativeTerminal $Package.Node04::gnd
 .EndPort
 
 * Extraction Setting description lines
@@ -397,7 +398,7 @@ Port5_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 
 * Frequency Sweeping description lines
 .FrequencySweep 1.000000e+01MHz 1.000000e+00GHz 1.000000e+01MHz Linear
-.FrequencyNew 1.000000e+05 5.000000e+09 2
+.FrequencyNew 1.000000e+07 1.000000e+09 2
 .DisplayFrequencyArray
 .SolutionFrequency 1.000000e+09
 
@@ -425,6 +426,12 @@ Port5_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 .3DEMCap
 .SimuOptionSettings
 +            MeshAlgorithm = 4 PolygonSimplificationType = 0 SignalNetsRefinements = 1
++            dxp = 0.0361575
++            dxm = 0.0361575
++            dyp = 0.0361575
++            dym = 0.0361575
++            dzp = 0.0361575
++            dzm = 0.0361575
 .EndSimuOptionSettings
 .End3DEMCap
 
@@ -484,7 +491,7 @@ Port5_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 .EndXtractIM
 
 * PowerDC Setup description lines
-.PowerDC
+.PowerDC PlotResolution = 0.0001 MeshX = 300 MeshY = 200 SimulationType = 1
 .TreatPadAsShape Type = 2 ConnectObject = 1 CheckIgnorePinSize = 1 NodeGapForPad = 5.08e-05 MinNodeNumForPad = 6
 .SignOffReportSetting VerticalRangeScale = 85
 .ExportDistribution2TxtSetting AllInOneLayer = 0
@@ -523,7 +530,7 @@ Port5_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 .AmbientConditions AirVelocity = 0
 .EndAmbientConditions
 .ThermalConstraints Constraints = 95
-.ThermalSimulationSetting
+.ThermalSimulationSetting MaxMeshEdgeLength = 0.001
 
 * TerminalPair description lines
 .EndThermalSimulationSetting
@@ -554,8 +561,8 @@ Port5_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 
 * CurveProp description lines
 .CurveProperty Name = "Impedance" Type = 2
-.Curve Type = 0 Color = 0x2CCCD3
-.Curve Type = 1 Color = 0x2CCCD3
+.Curve Type = 0 Color = DEEPSKYBLUE
+.Curve Type = 1 Color = DARKMAGENTA
 .Curve Type = 2 Color = DEEPSKYBLUE
 .Curve Type = 3 Color = DARKMAGENTA
 .EndCurveProperty
@@ -566,8 +573,8 @@ Port5_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 .Curve Type = 3 Color = 0xFF4616
 .EndCurveProperty
 .CurveProperty Name = "VRM" Type = 1
-.Curve Type = 0 Color = LIME
-.Curve Type = 1 Color = LIME
+.Curve Type = 0 Color = 0xA020F0
+.Curve Type = 1 Color = HOTPINK
 .Curve Type = 2 Color = 0xA020F0
 .Curve Type = 3 Color = HOTPINK
 .EndCurveProperty
@@ -604,10 +611,10 @@ Port5_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 	 RiseTime = 0ps %Coupling = 0
 	GroundNets Color = LIME
 	PowerNets Color = RED
-	grd -> GroundNets Color = AQUA
+	gnd -> GroundNets Color = AQUA
 	pwr -> PowerNets Color = FUCHSIA
 .EndNetList
-NetListFlag = 2D555E1C-49FB4050-47334E32-C1E6CAC6
+NetListFlag = 2D555E1C-49FB404C-47334E32-C1E6CAC6
 
 * DiffChannel description lines
 

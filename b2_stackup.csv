@@ -9,4 +9,4 @@ Layer #,Layer Name,Thickness(mm),Material,Conductivity(S/m),Fill-in Dielectric,E
 ,Medium04,0.5,,0,,4,0,,,,,,,,,,,,,
 5,Signal05,0.03556,,5.800000e+07,[FillSignal05_Average],[4],[0],ShapeSignal05,0.1,90,[None],[None],,1.5,1.5,1.5,1.5,0,0,off
 ,Medium05,0.5,,0,,4,0,,,,,,,,,,,,,
-6,Signal06,0.03556,1MM_COPPER,5.800000e+07,[AIR],[1],[0],ShapeSignal06,0.1,90,[None],[None],,1.5,1.5,1.5,1.5,0,0,off
+6,Signal06,0.03556,,5.800000e+07,[AIR],[1],[0],ShapeSignal06,0.1,90,[None],[None],,1.5,1.5,1.5,1.5,0,0,off

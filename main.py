@@ -1,12 +1,9 @@
 import re
 import numpy as np
-import numpy.random as random
-from scipy.special import binom
 import matplotlib.pyplot as plt
-from math import sqrt, pi
 
 from copy import deepcopy
-from code_pdn_AH import PDN, connect_1decap
+from code_pdn_AH import PDN
 from RES1_AH import main_res
 import time
 import os
@@ -84,20 +81,15 @@ def reorder_pwr_gnd_alternating_csv(xy_array, type_array,
 def parse_input(brd, via_spd_path=None, via_csv_path=None):
 
     def extract_start_stop_layers_strict_order(via_lines, node_info, ic_blocks, decap_blocks):
-        # def find_via_by_node(node, search_upper=True):
-        #     for upper, lower in via_lines:
-        #         if search_upper and upper == node:
-        #             return node_info[upper]['layer'], node_info[lower]['layer'], upper, lower
-        #         elif not search_upper and lower == node:
-        #             return node_info[upper]['layer'], node_info[lower]['layer'], upper, lower
-        #     return None
-
-        def find_via_by_node(node, search_upper=True): ######################## nk
+       
+        def find_via_by_node(node):
+            # return the first VIA that touches this node (upper or lower)
             for upper, lower in via_lines:
-                if (search_upper and upper == node) or (not search_upper and lower == node):
+                if upper == node or lower == node:
                     if (upper in node_info) and (lower in node_info):
                         return node_info[upper]['layer'], node_info[lower]['layer'], upper, lower
-            return None 
+            return None
+
 
         def process_blocks(blocks, is_ic=True):
             results = []
@@ -119,13 +111,13 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
 
                 for p_node, m_node in zip(plus_nodes, minus_nodes):
                     # + via
-                    p_result = find_via_by_node(p_node, search_upper=is_ic)
+                    p_result = find_via_by_node(p_node)
                     if p_result:
                         start, stop, u, l = p_result
                         typ = 1 if (node_info[u]['type'] == 1 or node_info[l]['type'] == 1) else 0
                         results.append((start, stop, typ))
                     # - via
-                    m_result = find_via_by_node(m_node, search_upper=is_ic)
+                    m_result = find_via_by_node(m_node)
                     if m_result:
                         start, stop, u, l = m_result
                         typ = 1 if (node_info[u]['type'] == 1 or node_info[l]['type'] == 1) else 0
@@ -170,15 +162,9 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
                     return True
             return False
 
-        shape_section = re.findall(
-            r"\.Shape\s+(ShapeSignal\d+)\n((?:(?:Box|Polygon).*?\n(?:\+.*?\n)?)?)",
-            content
-        )
+        shape_section = re.findall(r"\.Shape\s+(ShapeSignal\d+)\n((?:(?:Box|Polygon).*?\n(?:\+.*?\n)?)?)", content)
 
-        patch_mapping = re.findall(
-            r"PatchSignal\d+\s+Shape\s*=\s*(ShapeSignal\d+)\s+Layer\s*=\s*(Signal\d+)",
-            content
-        )
+        patch_mapping = re.findall(r"PatchSignal\d+\s+Shape\s*=\s*(ShapeSignal\d+)\s+Layer\s*=\s*(Signal\d+)", content)
 
         sorted_patch_mapping = sorted(patch_mapping, key=lambda x: int(x[1].replace("Signal", "")))
 
@@ -261,24 +247,6 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
         ic_node_ids = [f"Node{id}" for id in ic_node_ids]
         decap_node_ids = [f"Node{id}" for id in decap_node_ids]
 
-        ########################################################
-        # Create ic_dict to group IC vias by coordinates - Old version
-        # ic_dict = {}
-        # for node in ic_node_ids:
-        #     if node in node_info:
-        #         info = node_info[node]
-        #         key = (round(info['x'], 6), round(info['y'], 6))
-        #         if key not in ic_dict:
-        #             ic_dict[key] = {'type': info['type'], 'layers': set()}
-        #         ic_dict[key]['layers'].add(info['layer'])
-
-        # brd.ic_via_xy = np.array([[x * 1e-3, y * 1e-3] for x, y in ic_dict])
-        # brd.ic_via_type = np.array([v['type'] for v in ic_dict.values()])
-        # if len(brd.ic_via_xy) > 0:
-        #     ic_sorted_idx = np.lexsort((-brd.ic_via_xy[:, 1], brd.ic_via_xy[:, 0]))
-        #     brd.ic_via_xy = brd.ic_via_xy[ic_sorted_idx]
-        #     brd.ic_via_type = brd.ic_via_type[ic_sorted_idx]
-
         # New version: preserve order and include duplicates - NK
         ic_xy_list, ic_type_list = [], []
         for node in ic_node_ids:
@@ -315,8 +283,6 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
 
         brd.decap_via_xy = np.array(decap_xy_list)
         brd.decap_via_type = np.array(decap_type_list)
-
-
 
         buried_dict = {}
         existing_xy_keys = set([tuple(xy) for xy in np.round(np.concatenate([brd.ic_via_xy, brd.decap_via_xy], axis=0) * 1e3, 6)])
@@ -464,13 +430,6 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
                 'index': idx
             })
 
-        # Combine merged and unmerged vias, then sort by index - nk commented out
-        #combined = original_data + merged_results
-        #combined.sort(key=lambda x: x['index'])
-
-        #brd.start_layers = np.array([v['start'] for v in combined])
-        #brd.stop_layers = np.array([v['stop'] for v in combined])
-        #brd.via_type     = np.array([v['type'] for v in combined])
         ##################################################################
 
         all_layers = [v['layer'] for v in node_info.values()]
@@ -504,8 +463,6 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
                     break
             if not found:
                 brd.decap_via_loc.append(0)  
-       
-
 
         # --- Return ---
         return_values = (
@@ -524,15 +481,7 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
 
         return return_values
 
-#---csv file
-    import pandas as pd
-    import numpy as np
-    def is_duplicate_shape(new_shape, existing_shapes, tol=1e-9):
-        for shape in existing_shapes:
-            if shape.shape == new_shape.shape and np.allclose(shape, new_shape, atol=tol):
-                return True
-        return False
-
+    #---csv file
     if via_csv_path:
         df = pd.read_csv(via_csv_path)
         df.columns = df.columns.str.strip()
@@ -583,8 +532,9 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
         stop_layers = ic_df.drop_duplicates(subset=["via_x_(mm)", "via_y_(mm)"])["stop_layer"].values
 
 
-        brd.ic_via_xy, brd.ic_via_type, brd.ic_via_loc = reorder_pwr_gnd_alternating_csv(
-            ic_xy, ic_type, port_num=port_num, start_layers=start_layers, stop_layers=stop_layers, global_max_stop_layer=global_max_stop_layer, loc_flag="both")
+        brd.ic_via_xy, brd.ic_via_type, brd.ic_via_loc = reorder_pwr_gnd_alternating_csv(ic_xy, ic_type, port_num=port_num, 
+                                                                                        start_layers=start_layers, stop_layers=stop_layers, 
+                                                                                        global_max_stop_layer=global_max_stop_layer, loc_flag="both")
 
         decap_xy_all, decap_type_all, decap_loc_all = [], [], []
 
@@ -596,8 +546,9 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
             start_layers = port_df.drop_duplicates(subset=["via_x_(mm)", "via_y_(mm)"])["start_layer"].values
             stop_layers = port_df.drop_duplicates(subset=["via_x_(mm)", "via_y_(mm)"])["stop_layer"].values
 
-            xy_r, typ_r, loc_r = reorder_pwr_gnd_alternating_csv(
-                xy, typ, port_num=port_num, start_layers=start_layers, stop_layers=stop_layers, global_max_stop_layer=global_max_stop_layer, loc_flag="both")
+            xy_r, typ_r, loc_r = reorder_pwr_gnd_alternating_csv(xy, typ, port_num=port_num, 
+                                                                 start_layers=start_layers, stop_layers=stop_layers, 
+                                                                 global_max_stop_layer=global_max_stop_layer, loc_flag="both")
 
             decap_xy_all.extend(xy_r)
             decap_type_all.extend(typ_r)
@@ -606,7 +557,6 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
         brd.decap_via_xy = np.array(decap_xy_all)
         brd.decap_via_type = np.array(decap_type_all)
         brd.decap_via_loc = np.array(decap_loc_all)
-
 
         port_groups = {}
         for _, row in df.iterrows():
@@ -682,7 +632,7 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
 
 
 
-#     return thicknesses, ers
+# return thicknesses, ers
 def read_stackup_from_csv(stack_up_csv_path):
     df = pd.read_csv(stack_up_csv_path)
     df.columns = df.columns.str.strip()
@@ -690,14 +640,11 @@ def read_stackup_from_csv(stack_up_csv_path):
     df_medium = df[df['Layer Name'].str.startswith('Medium')]
     df_Signal = df[df['Layer Name'].str.startswith('Signal')]
 
-
     # mm -> m
     thicknesses = df_medium['Thickness(mm)'].astype(float).values * 1e-3
     d_r = df_Signal['Thickness(mm)'].astype(float).values * 1e-3
     ers = df_medium['Er'].astype(float).values
-
-
-
+    
     return thicknesses, ers, d_r
 
 def set_ic_via_loc_per_via(brd, start_layers, stop_layers):
@@ -726,23 +673,11 @@ def handle_gen_brd_data_output(result):
     else:
         raise ValueError(f"Unexpected number of return values from gen_brd_data: {len(result)}")
 
-def gen_brd_data(
-    brd,
-    input_path,
-    input_type,  
-    stack_up_csv_path=None,
-    d=1e-3
-):
-
+def gen_brd_data(brd, input_path, input_type, stack_up_csv_path=None, d=1e-3):
     via_spd_path = input_path if input_type == "spd" else None
     via_csv_path = input_path if input_type == "csv" else None
 
-    result = parse_input(
-    brd,
-    via_spd_path=via_spd_path,
-    via_csv_path=via_csv_path,
-    )
-    
+    result = parse_input(brd, via_spd_path=via_spd_path, via_csv_path=via_csv_path)
 
     # Safely unpack depending on the presence of buried vias
     if len(result) == 8:
@@ -754,23 +689,12 @@ def gen_brd_data(
         brd.buried_via_type = buried_via_type
     else:
         raise ValueError(f"Unexpected return count from parse_input: {len(result)}")
-
-
-
-
-
-    bxy = np.array([np.round(np.array(item), 7) for item in bxy], dtype=object)
-
+    
+    bxy = np.array([np.round(np.array(item), 6) for item in bxy], dtype=object)
     brd.bxy = bxy
 
-
-    brd.sxy = np.concatenate(
-    [brd.seg_bd_node(single_bxy, d) for single_bxy in brd.bxy],
-    axis=0
-    )
-
+    brd.sxy = np.concatenate( [brd.seg_bd_node(single_bxy, d) for single_bxy in brd.bxy], axis=0)
     brd.sxy = [brd.seg_bd_node(single_bxy, d) for single_bxy in brd.bxy]
-   
     brd.sxy = np.concatenate([brd.seg_bd_node(b, d) for b in brd.bxy], axis=0)
 
     brd.sxy_index_ranges = []
@@ -782,7 +706,10 @@ def gen_brd_data(
 
     brd.sxy_list = [brd.seg_bd_node(b, d) for b in brd.bxy]
 
-    brd.ic_via_xy = np.round(np.array(ic_via_xy), 7)
+    ############################################# nk rounding
+    SNAP_DECIMALS = 6
+    
+    brd.ic_via_xy = np.round(np.array(ic_via_xy), SNAP_DECIMALS)
     brd.ic_via_type = np.array(ic_via_type, dtype=int)
 
     start_layers = np.array(start_layers).tolist()
@@ -794,9 +721,25 @@ def gen_brd_data(
     set_ic_via_loc_per_via(brd, start_layers[:n_ic], stop_layers[:n_ic])
 
     brd.via_type = np.array(via_type, dtype=int)
-    brd.decap_via_xy = np.round(np.array(decap_via_xy), 7)
+    brd.decap_via_xy = np.round(np.array(decap_via_xy), SNAP_DECIMALS)
     brd.decap_via_type = np.array(decap_via_type, dtype=int)
 
+    ########################################### nk debug vias
+    total_vias = 0
+    if brd.ic_via_xy.size:     total_vias += brd.ic_via_xy.shape[0]
+    if brd.decap_via_xy.size:  total_vias += brd.decap_via_xy.shape[0]
+    if getattr(brd, 'buried_via_xy', np.array([])).size:
+        total_vias += brd.buried_via_xy.shape[0]
+
+    print("[INFO] counts:",
+        "start", len(brd.start_layers),
+        "stop", len(brd.stop_layers),
+        "type", len(brd.via_type),
+        "vias_xy", total_vias)
+
+    if not (len(brd.start_layers) == len(brd.stop_layers) == len(brd.via_type) == total_vias):
+        raise RuntimeError("Via array length mismatch: start/stop/type must equal total_vias.")
+    ########################################### nk debug vias end
 
 
     for i in range(len(brd.decap_via_xy)):
@@ -822,7 +765,7 @@ def gen_brd_data(
     brd.die_t = die_t
     brd.d_r=d_r
 
-# resistance part
+    # resistance part
     res_matrix = main_res(
         brd=brd,
         die_t=die_t,
@@ -838,25 +781,24 @@ def gen_brd_data(
         ic_via_type = brd.ic_via_type
     )
 
-#R/L
+    #R/L
     z = brd.calc_z_fast(res_matrix=res_matrix)
-
    
     brd.buried_via_xy = brd.buried_via_xy if hasattr(brd, "buried_via_xy") else None
     brd.buried_via_type = brd.buried_via_type if hasattr(brd, "buried_via_type") else None
 
     result = [
-    z,
-    brd.bxy,
-    brd.ic_via_xy,
-    brd.ic_via_type,
-    brd.decap_via_xy,
-    brd.decap_via_type,
-    brd.decap_via_loc,
-    stackup,
-    die_t,
-    brd.sxy_list
-]
+        z,
+        brd.bxy,
+        brd.ic_via_xy,
+        brd.ic_via_type,
+        brd.decap_via_xy,
+        brd.decap_via_type,
+        brd.decap_via_loc,
+        stackup,
+        die_t,
+        brd.sxy_list
+    ]
 
     if brd.buried_via_xy is not None and brd.buried_via_type is not None:
         result.append(brd.buried_via_xy)
@@ -966,6 +908,8 @@ def save2s(self, z, filename, path, z0=50):
     brd.s = rf.network.z2s(z)
     brd.write_touchstone(path + filename + ".s" + str(z.shape[1]) + "p")
     freq = np.logspace(np.log10(10e6), np.log10(200e6), 201)
+
+
 
 
 if __name__ == '__main__':

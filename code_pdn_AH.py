@@ -1911,97 +1911,97 @@ class PDN():
 
         map2old_node = new_old_node_map[:, 1].astype(int).tolist()
 
-        ##########################
+        ########################## debug nk ##########################
 
-        # # 1) Which layers are "anchored"?
-        # print("[DBG] layer_com_node:", layer_com_node.tolist())
-        # # Values of -1 mean: solver found no via terminating on that layer for the relevant net.
+        # 1) Which layers are "anchored"?
+        print("[DBG] layer_com_node:", layer_com_node.tolist())
+        # Values of -1 mean: solver found no via terminating on that layer for the relevant net.
 
-        # # 2) Which extra branches are the inter-layer capacitors attached to?
-        # # (Each cavity adds one branch; both endpoints should map to existing nodes)
-        # cap_branch_rows = list(range(L_new_inv.shape[0], new_branch_n))
-        # print("[DBG] cap branches (branch_id, node1, node2):",
-        #     new_branch_nodes_w_c[cap_branch_rows, :].astype(int).tolist())
+        # 2) Which extra branches are the inter-layer capacitors attached to?
+        # (Each cavity adds one branch; both endpoints should map to existing nodes)
+        cap_branch_rows = list(range(L_new_inv.shape[0], new_branch_n))
+        print("[DBG] cap branches (branch_id, node1, node2):",
+            new_branch_nodes_w_c[cap_branch_rows, :].astype(int).tolist())
 
-        # # 3) Show the map (old->new) of node IDs the solver knows about
-        # print("[DBG] map2old_node:", map2old_node)  # list of old node indices present in the reduced system
+        # 3) Show the map (old->new) of node IDs the solver knows about
+        print("[DBG] map2old_node:", map2old_node)  # list of old node indices present in the reduced system
         
 
-        # # --- After A, Yn are formed, before choosing ref_node ---
-        # # 0) Sanity: print the port mapping you’re about to rely on
-        # print("[DBG] port_node (+, -) per port:\n", port_node.astype(int))
+        # --- After A, Yn are formed, before choosing ref_node ---
+        # 0) Sanity: print the port mapping you’re about to rely on
+        print("[DBG] port_node (+, -) per port:\n", port_node.astype(int))
 
-        # # 1) Check for any invalid port mappings
-        # invalid_ports = np.where((port_node[:,0] < 0) | (port_node[:,1] < 0))[0]
-        # if invalid_ports.size:
-        #     print("[ERR] Ports with invalid +/- node indices:", invalid_ports)
-        #     # This is a parsing/mapping problem – fix parser or skip these ports.
+        # 1) Check for any invalid port mappings
+        invalid_ports = np.where((port_node[:,0] < 0) | (port_node[:,1] < 0))[0]
+        if invalid_ports.size:
+            print("[ERR] Ports with invalid +/- node indices:", invalid_ports)
+            # This is a parsing/mapping problem – fix parser or skip these ports.
 
-        # # 2) Degenerate branches where node1 == node2
-        # bad_branches = np.where(new_branch_nodes_w_c[:,1] == new_branch_nodes_w_c[:,2])[0]
-        # if bad_branches.size:
-        #     print("[WARN] Branches with identical endpoints:", bad_branches.tolist())
-        #     # You can drop them from A/Yb (see fix section).
+        # 2) Degenerate branches where node1 == node2
+        bad_branches = np.where(new_branch_nodes_w_c[:,1] == new_branch_nodes_w_c[:,2])[0]
+        if bad_branches.size:
+            print("[WARN] Branches with identical endpoints:", bad_branches.tolist())
+            # You can drop them from A/Yb (see fix section).
 
-        # # 3) Connectivity: find nodes not connected to the chosen reference
-        # map2old_node = new_old_node_map[:, 1].astype(int).tolist()
-        # ref_node = int(port_node[0, 1])     # gnd of first port
-        # if ref_node in map2old_node:
-        #     ref_idx = map2old_node.index(ref_node)
-        # else:
-        #     print("[ERR] ref_node not found in map2old_node. ref_node=", ref_node, "map:", map2old_node)
+        # 3) Connectivity: find nodes not connected to the chosen reference
+        map2old_node = new_old_node_map[:, 1].astype(int).tolist()
+        ref_node = int(port_node[0, 1])     # gnd of first port
+        if ref_node in map2old_node:
+            ref_idx = map2old_node.index(ref_node)
+        else:
+            print("[ERR] ref_node not found in map2old_node. ref_node=", ref_node, "map:", map2old_node)
 
-        # # Build an undirected adjacency from branches
-        # Nn = int(A.shape[1])
-        # adj = np.zeros((Nn, Nn), dtype=bool)
-        # for b in range(int(new_branch_nodes_w_c.shape[0])):
-        #     n1 = int(new_branch_nodes_w_c[b,1]); n2 = int(new_branch_nodes_w_c[b,2])
-        #     if n1 != n2:
-        #         adj[n1,n2] = True; adj[n2,n1] = True
+        # Build an undirected adjacency from branches
+        Nn = int(A.shape[1])
+        adj = np.zeros((Nn, Nn), dtype=bool)
+        for b in range(int(new_branch_nodes_w_c.shape[0])):
+            n1 = int(new_branch_nodes_w_c[b,1]); n2 = int(new_branch_nodes_w_c[b,2])
+            if n1 != n2:
+                adj[n1,n2] = True; adj[n2,n1] = True
 
-        # # BFS/DFS from ref_idx
-        # seen = np.zeros(Nn, dtype=bool)
-        # stack = [ref_idx]
-        # while stack:
-        #     v = stack.pop()
-        #     if seen[v]: continue
-        #     seen[v] = True
-        #     nxt = np.where(adj[v])[0]
-        #     for u in nxt:
-        #         if not seen[u]: stack.append(u)
+        # BFS/DFS from ref_idx
+        seen = np.zeros(Nn, dtype=bool)
+        stack = [ref_idx]
+        while stack:
+            v = stack.pop()
+            if seen[v]: continue
+            seen[v] = True
+            nxt = np.where(adj[v])[0]
+            for u in nxt:
+                if not seen[u]: stack.append(u)
 
-        # disconnected = np.where(~seen)[0]
-        # if disconnected.size:
-        #     print("[ERR] Disconnected nodes (not reachable from reference):", disconnected.tolist())
-        #     # These nodes belong to floating islands; Yn will be singular after single reference removal.
+        disconnected = np.where(~seen)[0]
+        if disconnected.size:
+            print("[ERR] Disconnected nodes (not reachable from reference):", disconnected.tolist())
+            # These nodes belong to floating islands; Yn will be singular after single reference removal.
 
-        # # 4) Rank check per frequency (optional but surgical)
-        # import numpy as _np
-        # def _rank(M): 
-        #     # cheap rank estimator
-        #     u,s,vt = _np.linalg.svd(M, full_matrices=False)
-        #     return (s > 1e-12).sum()
-        # for fi in (0, len(self.freq.f)//2, len(self.freq.f)-1):
-        #     r = _rank(Yn[fi])
-        #     print(f"[DBG] rank(Yn[{fi}])={r} size={Yn.shape[1]}")
+        # 4) Rank check per frequency (optional but surgical)
+        import numpy as _np
+        def _rank(M): 
+            # cheap rank estimator
+            u,s,vt = _np.linalg.svd(M, full_matrices=False)
+            return (s > 1e-12).sum()
+        for fi in (0, len(self.freq.f)//2, len(self.freq.f)-1):
+            r = _rank(Yn[fi])
+            print(f"[DBG] rank(Yn[{fi}])={r} size={Yn.shape[1]}")
 
 
-        # 0) Immediate neighbors of the “bad” nodes
-        # for bad in [11, 12]:
-        #     neigh = np.where(adj[bad])[0].tolist()
-        #     print(f"[DBG] neighbors(node {bad}) =", neigh)
-        #     attached = np.where((new_branch_nodes_w_c[:,1]==bad) | (new_branch_nodes_w_c[:,2]==bad))[0]
-        #     print(f"[DBG] branches touching {bad}:", attached.tolist())
-        #     for b in attached:
-        #         n1 = int(new_branch_nodes_w_c[b,1]); n2 = int(new_branch_nodes_w_c[b,2])
-        #         kind = "cap" if b >= L_new_inv.shape[0] else "cond"
-        #         print(f"    branch {b}: {n1}<->{n2} ({kind})")
+        #0) Immediate neighbors of the “bad” nodes
+        for bad in [11, 12]:
+            neigh = np.where(adj[bad])[0].tolist()
+            print(f"[DBG] neighbors(node {bad}) =", neigh)
+            attached = np.where((new_branch_nodes_w_c[:,1]==bad) | (new_branch_nodes_w_c[:,2]==bad))[0]
+            print(f"[DBG] branches touching {bad}:", attached.tolist())
+            for b in attached:
+                n1 = int(new_branch_nodes_w_c[b,1]); n2 = int(new_branch_nodes_w_c[b,2])
+                kind = "cap" if b >= L_new_inv.shape[0] else "cond"
+                print(f"    branch {b}: {n1}<->{n2} ({kind})")
 
-        # # 1) Per-via table (what the solver *thinks* each via is)
-        # for i in range(len(self.start_layers)):
-        #     print(f"[VIA {i}] type={via_type[i]} start={self.start_layers[i]} stop={self.stop_layers[i]} xy={via_xy[i]}")
+        # 1) Per-via table (what the solver *thinks* each via is)
+        for i in range(len(self.start_layers)):
+            print(f"[VIA {i}] type={via_type[i]} start={self.start_layers[i]} stop={self.stop_layers[i]} xy={via_xy[i]}")
     
-        ##########################
+        ########################## end debug nk ##########################
         
 
         # choose a reference node: the gnd node of the first port
