@@ -1,0 +1,22 @@
+[2025/09/07-15:15:15]--Error Checking with Options:
+                       		Floating nodes : ON
+                       		Geometry error : ON
+                       		Short circuit : ON
+                       		Open circuit : ON
+                       		Tool dependency : OFF
+                       		Mesh geometry error : ON
+[2025/09/07-15:15:15]--Environment: Mesh on.
+[2025/09/07-15:15:15]--
+                       ****Summary: Miscellaneous check, Error(s) = 0, Warning(s) = 0
+[2025/09/07-15:15:15]--
+                       ****Summary: Variables checks, Error(s) = 0, Warning(s) = 0
+[2025/09/07-15:15:15]--
+                       ****Summary: Shape Gap detect, Error(s) = 0, Warning(s) = 0
+[2025/09/07-15:15:15]--
+                       ****Summary: Via Overlap check, Error(s) = 0, Warning(s) = 0
+[2025/09/07-15:15:15]--
+                       ****Summary: Node Contact check (Geometry Error), Error(s) = 0, Warning(s) = 0
+[2025/09/07-15:15:15]--
+                       0 error(s) 0 warning(s) found in SPD file "b3.spd"
+                       
+                       

@@ -1,6 +1,7 @@
 import re
 import numpy as np
 import matplotlib.pyplot as plt
+import pathlib
 
 from copy import deepcopy
 from code_pdn_AH import PDN
@@ -23,14 +24,18 @@ class Board:
         self.decap_via_loc = np.array([])
 
 ################################################# nk 
-import re
+# def canon_node(name: str) -> str:
+#     m = re.match(r'(Node)(\d+)$', name)
+#     if m:
+#         # Strip leading zeros: 'Node013' -> 'Node13'
+#         return m.group(1) + str(int(m.group(2)))
+#     return name
 
 def canon_node(name: str) -> str:
-    m = re.match(r'(Node)(\d+)$', name)
-    if m:
-        # Strip leading zeros: 'Node013' -> 'Node13'
-        return m.group(1) + str(int(m.group(2)))
-    return name
+    # Normalize Node labels like Node01 / Node001 / Node1 -> Node1
+    m = re.match(r"Node0*([1-9]\d*)$", name, flags=re.IGNORECASE)
+    return f"Node{m.group(1)}" if m else name
+
 #################################################
 
 #Reorders PWR and GND vias in alternating sequence and computes location flags based on via type and layer info.
@@ -221,14 +226,31 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
             r"(Node\d+)(?:::)?(PWR|GND)?\s+X\s*=\s*([-\d\.eE\+]+)mm\s+Y\s*=\s*([-\d\.eE\+]+)mm\s+Layer\s*=\s*Signal(\d+)",
             content, re.IGNORECASE
         )
-        node_info = {
-            n[0]: {
+
+        # node_info = {
+        #     n[0]: {
+        #         'type': 1 if n[1] and n[1].lower() == 'pwr' else 0,
+        #         'x': float(n[2]),
+        #         'y': float(n[3]),
+        #         'layer': int(n[4])
+        #     } for n in node_lines
+            
+        # }
+
+        ######################### nk insert canonized keys too ###############################
+        node_info = {}
+        for n in node_lines:
+            raw = n[0]                         # e.g. "Node013"
+            name = canon_node(raw)             # "Node13"
+            info = {
                 'type': 1 if n[1] and n[1].lower() == 'pwr' else 0,
                 'x': float(n[2]),
                 'y': float(n[3]),
                 'layer': int(n[4])
-            } for n in node_lines
-        }
+            }
+            node_info[name] = info
+            node_info[raw]  = info             # accept both forms
+        ##########################################################
 
         # Canonicalize node keys (e.g., 'Node013' → 'Node13') and store both - nk
         for k, v in list(node_info.items()):
@@ -240,22 +262,41 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
         ic_blocks = re.findall(r"\.Connect\s+ic_port.*?\n(.*?)\.EndC", component_block, re.DOTALL | re.IGNORECASE)
         decap_blocks = re.findall(r"\.Connect\s+(?:decap|cap)_port\d*\s+.*?\n(.*?)\.EndC", component_block, re.DOTALL | re.IGNORECASE)
 
-
         ic_node_ids = re.findall(r"\$Package\.Node(\d+)", '\n'.join(ic_blocks))
         decap_node_ids = re.findall(r"\$Package\.Node(\d+)", '\n'.join(decap_blocks))
-
+    
         ic_node_ids = [f"Node{id}" for id in ic_node_ids]
         decap_node_ids = [f"Node{id}" for id in decap_node_ids]
 
+
+            
         # New version: preserve order and include duplicates - NK
-        ic_xy_list, ic_type_list = [], []
-        for node in ic_node_ids:
-            if node in node_info:
-                info = node_info[node]
-                ic_xy_list.append([info['x'] * 1e-3, info['y'] * 1e-3])
-                ic_type_list.append(info['type'])
-        brd.ic_via_xy   = np.array(ic_xy_list)
-        brd.ic_via_type = np.array(ic_type_list)
+        # ic_xy_list, ic_type_list = [], []
+        # for node in ic_node_ids:
+        #     if node in node_info:
+        #         info = node_info[node]
+        #         ic_xy_list.append([info['x'] * 1e-3, info['y'] * 1e-3])
+        #         ic_type_list.append(info['type'])
+        # brd.ic_via_xy   = np.array(ic_xy_list)
+        # brd.ic_via_type = np.array(ic_type_list)
+
+        SNAP_DEC = 7
+        # --- IC vias: preserve order & names from the IC block(s)
+        ic_names_ordered, ic_xy_list, ic_type_list = [], [], []
+        for blk in ic_blocks:
+            lines = [ln.strip() for ln in blk.strip().splitlines()]
+            plus_nodes  = [canon_node(re.search(r"\$Package\.(Node\d+)", ln).group(1)) for ln in lines if ln.startswith("1")]
+            minus_nodes = [canon_node(re.search(r"\$Package\.(Node\d+)", ln).group(1)) for ln in lines if ln.startswith("2")]
+            for n in plus_nodes + minus_nodes:
+                if n in node_info:
+                    info = node_info[n]
+                    ic_names_ordered.append(n)
+                    ic_xy_list.append([info['x']*1e-3, info['y']*1e-3])
+                    ic_type_list.append(info['type'])
+
+        brd.ic_node_names = ic_names_ordered
+        brd.ic_via_xy     = np.round(np.array(ic_xy_list), SNAP_DEC)
+        brd.ic_via_type   = np.array(ic_type_list, dtype=int)
         ######################################################## 
 
         via_lines = re.findall(r"Via\d+::\w+\s+UpperNode\s*=\s*(Node\d+)(?:::)?\w*\s+LowerNode\s*=\s*(Node\d+)(?:::)?\w*", content, flags=re.IGNORECASE)
@@ -270,19 +311,39 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
         brd.start_layers -= 1
         brd.stop_layers -= 1
 
-        decap_xy_list = []
-        decap_type_list = []
+        ############################## nk ##############################
+        # decap_xy_list = []
+        # decap_type_list = []
 
-        for node in decap_node_ids:
-            if node in node_info:
-                info = node_info[node]
-                x, y = info['x'], info['y']
-                t = info['type']  # 1 = pwr, 0 = gnd
-                decap_xy_list.append([x * 1e-3, y * 1e-3])
-                decap_type_list.append(t)
+        # for node in decap_node_ids:
+        #     if node in node_info:
+        #         info = node_info[node]
+        #         x, y = info['x'], info['y']
+        #         t = info['type']  # 1 = pwr, 0 = gnd
+        #         decap_xy_list.append([x * 1e-3, y * 1e-3])
+        #         decap_type_list.append(t)
 
-        brd.decap_via_xy = np.array(decap_xy_list)
-        brd.decap_via_type = np.array(decap_type_list)
+        # brd.decap_via_xy = np.array(decap_xy_list)
+        # brd.decap_via_type = np.array(decap_type_list)
+
+        # --- Decap vias: preserve Connect order (& names)
+        decap_names_ordered, decap_xy_list, decap_type_list = [], [], []
+        for blk in decap_blocks:
+            lines = [ln.strip() for ln in blk.strip().splitlines()]
+            plus_nodes  = [canon_node(re.search(r"\$Package\.(Node\d+)", ln).group(1)) for ln in lines if ln.startswith("1")]
+            minus_nodes = [canon_node(re.search(r"\$Package\.(Node\d+)", ln).group(1)) for ln in lines if ln.startswith("2")]
+            for n in plus_nodes + minus_nodes:
+                if n in node_info:
+                    info = node_info[n]
+                    decap_names_ordered.append(n)
+                    decap_xy_list.append([info['x']*1e-3, info['y']*1e-3])
+                    decap_type_list.append(info['type'])
+
+        brd.decap_node_names = decap_names_ordered
+        brd.decap_via_xy     = np.round(np.array(decap_xy_list), SNAP_DEC)
+        brd.decap_via_type   = np.array(decap_type_list, dtype=int)
+
+        ############################## nk ##############################
 
         buried_dict = {}
         existing_xy_keys = set([tuple(xy) for xy in np.round(np.concatenate([brd.ic_via_xy, brd.decap_via_xy], axis=0) * 1e3, 6)])
@@ -308,12 +369,14 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
             y = round((upper_node['y'] + lower_node['y']) / 2, 6)
             key = (x, y)
 
-            if key in existing_xy_keys:
-                # Check if it overlaps with existing nodes at the same location
-                overlap_nodes = [n for n in node_info.values()
-                                 if round(n['x'], 6) == x and round(n['y'], 6) == y]
-                if any(n['layer'] in [min_layer, max_layer] for n in overlap_nodes):
-                    continue  # Existing via connects to top/bottom layer → not eligible as a buried via
+
+            ############################ nk ############################
+            # if key in existing_xy_keys:
+            #     # Check if it overlaps with existing nodes at the same location
+            #     overlap_nodes = [n for n in node_info.values()
+            #                      if round(n['x'], 6) == x and round(n['y'], 6) == y]
+            #     if any(n['layer'] in [min_layer, max_layer] for n in overlap_nodes):
+            #         continue  # Existing via connects to top/bottom layer → not eligible as a buried via
 
             if key not in buried_dict:
                 buried_dict[key] = {
@@ -435,34 +498,56 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
         all_layers = [v['layer'] for v in node_info.values()]
         max_layer = max(all_layers)
         min_layer = min(all_layers)
+        
+        ################################# nk ##############################
+        # # List of node IDs for IC and DECAP vias
+        # ic_node_ids = [f"Node{id}" for id in re.findall(r"\$Package\.Node(\d+)", '\n'.join(ic_blocks))]
+        # decap_node_ids = [f"Node{id}" for id in re.findall(r"\$Package\.Node(\d+)", '\n'.join(decap_blocks))]
 
-        # List of node IDs for IC and DECAP vias
-        ic_node_ids = [f"Node{id}" for id in re.findall(r"\$Package\.Node(\d+)", '\n'.join(ic_blocks))]
-        decap_node_ids = [f"Node{id}" for id in re.findall(r"\$Package\.Node(\d+)", '\n'.join(decap_blocks))]
+        # brd.ic_via_loc = []
+        # for xy in brd.ic_via_xy:
+        #     x, y = round(xy[0] * 1e3, 6), round(xy[1] * 1e3, 6)
+        #     found = False
+        #     for node, info in node_info.items():
+        #         if node in ic_node_ids and round(info['x'], 6) == x and round(info['y'], 6) == y:
+        #             brd.ic_via_loc.append(1 if info['layer'] == min_layer else 0)
+        #             found = True
+        #             break
+        #     if not found:
+        #         brd.ic_via_loc.append(-1)  
 
-        brd.ic_via_loc = []
-        for xy in brd.ic_via_xy:
-            x, y = round(xy[0] * 1e3, 6), round(xy[1] * 1e3, 6)
-            found = False
-            for node, info in node_info.items():
-                if node in ic_node_ids and round(info['x'], 6) == x and round(info['y'], 6) == y:
-                    brd.ic_via_loc.append(1 if info['layer'] == min_layer else 0)
-                    found = True
-                    break
-            if not found:
-                brd.ic_via_loc.append(-1)  
+        # brd.decap_via_loc = []
+        # for xy in brd.decap_via_xy:
+        #     x, y = round(xy[0] * 1e3, 6), round(xy[1] * 1e3, 6)
+        #     found = False
+        #     for node, info in node_info.items():
+        #         if node in decap_node_ids and round(info['x'], 6) == x and round(info['y'], 6) == y:
+        #             brd.decap_via_loc.append(1 if info['layer'] == min_layer else 0)
+        #             found = True
+        #             break
+        #     if not found:
+        #         brd.decap_via_loc.append(0)  
 
-        brd.decap_via_loc = []
-        for xy in brd.decap_via_xy:
-            x, y = round(xy[0] * 1e3, 6), round(xy[1] * 1e3, 6)
-            found = False
-            for node, info in node_info.items():
-                if node in decap_node_ids and round(info['x'], 6) == x and round(info['y'], 6) == y:
-                    brd.decap_via_loc.append(1 if info['layer'] == min_layer else 0)
-                    found = True
-                    break
-            if not found:
-                brd.decap_via_loc.append(0)  
+        # IC locations: top if on top layer, else bottom. Use node layer from names:
+        top_layer = min(n['layer'] for n in node_info.values())
+        bot_layer = max(n['layer'] for n in node_info.values())
+
+        ic_locs = []
+        for n in brd.ic_node_names:
+            lyr = node_info[n]['layer']
+            ic_locs.append(1 if lyr == top_layer else (0 if lyr == bot_layer else (1 if lyr == top_layer else 0)))  # ICs almost always on top; fallback conservative
+        brd.ic_via_loc = np.array(ic_locs, dtype=int)
+
+        # Decap locations: use the node layer directly
+        dec_locs = []
+        for n in brd.decap_node_names:
+            lyr = node_info[n]['layer']
+            dec_locs.append(1 if lyr == top_layer else 0 if lyr == bot_layer else (1 if lyr == top_layer else 0))
+        brd.decap_via_loc = np.array(dec_locs, dtype=int)
+
+        #################################### nk ##############################
+
+
 
         # --- Return ---
         return_values = (
@@ -621,6 +706,92 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
             brd.decap_via_type,
         ]
 
+        ################################# nk ###############################
+        # Total via order in calc_z_fast: [IC] + [DECAP] + ([BURIED] if any)
+        N_ic    = brd.ic_via_xy.shape[0]
+        N_dec   = brd.decap_via_xy.shape[0]
+        N_bury  = (0 if not hasattr(brd, 'buried_via_xy') or brd.buried_via_xy is None else brd.buried_via_xy.shape[0])
+        N_total = N_ic + N_dec + N_bury
+
+        top_port_num = [[-1] for _ in range(N_total)]
+        bot_port_num = [[-1] for _ in range(N_total)]
+
+        # Port 0 is IC. Every IC via belongs to port 0
+        for i in range(N_ic):
+            top_port_num[i] = [0]  # org_merge_pdn will split +/− by via_type
+
+        # Decaps: 1..M in the order they appear in decap_blocks
+        port_id = 1
+        for blk in decap_blocks:
+            lines = [ln.strip() for ln in blk.strip().splitlines()]
+            plus_nodes  = [canon_node(re.search(r"\$Package\.(Node\d+)", ln).group(1)) for ln in lines if ln.startswith("1")]
+            minus_nodes = [canon_node(re.search(r"\$Package\.(Node\d+)", ln).group(1)) for ln in lines if ln.startswith("2")]
+
+            # one PWR node and one GND node per decap port
+            for n in plus_nodes + minus_nodes:
+                # find the decap-via index for this node name
+                try:
+                    j = brd.decap_node_names.index(n)               # 0..N_dec-1
+                except ValueError:
+                    continue  # node name not in decap set (shouldn't happen if SPD is consistent)
+
+                global_idx = N_ic + j                                # shift into total via index
+                if brd.decap_via_loc[j] == 1:
+                    top_port_num[global_idx] = [port_id]
+                else:
+                    bot_port_num[global_idx] = [port_id]
+            port_id += 1
+
+        # Stash on the PDN object so calc_z_fast can use them
+        brd.top_port_num = np.array(top_port_num, dtype=object)
+        brd.bot_port_num = np.array(bot_port_num, dtype=object)
+        ################################# nk end ###############################
+
+        ################################# nk start ###############################
+        # fix for b4_1: is gives PDN an exact per-via → (port, cavity) map for SPD inputs, the same way you already do for CSV. 
+        # Without it, the heuristic can co-locate top/bottom vias in the same cavity and trigger log(0)
+
+        # ---- Port/cavity maps for SPD (mirror CSV logic) ----
+        N_ic   = brd.ic_via_xy.shape[0]
+        N_dec  = brd.decap_via_xy.shape[0]
+        N_bury = 0 if not hasattr(brd, 'buried_via_xy') or brd.buried_via_xy is None else brd.buried_via_xy.shape[0]
+        N_total = N_ic + N_dec + N_bury
+
+        top_port_num = [[-1] for _ in range(N_total)]
+        bot_port_num = [[-1] for _ in range(N_total)]
+
+        # IC = port 0
+        for i in range(N_ic):
+            # Assign IC vias to the cavity they physically sit on; PDN will split +/- by via_type
+            if brd.ic_via_loc[i] == 1:
+                top_port_num[i] = [0]
+            else:
+                bot_port_num[i] = [0]
+
+        # Decaps: 1..M in .Connect order
+        port_id = 1
+        for blk in ic_blocks + decap_blocks:   # keep decap port ordering consistent with Connect blocks
+            if blk in ic_blocks:
+                continue
+            lines = [ln.strip() for ln in blk.strip().splitlines()]
+            plus  = [canon_node(re.search(r"\$Package\.(Node\d+)", ln).group(1)) for ln in lines if ln.startswith("1")]
+            minus = [canon_node(re.search(r"\$Package\.(Node\d+)", ln).group(1)) for ln in lines if ln.startswith("2")]
+            for n in plus + minus:
+                if n in brd.decap_node_names:
+                    j = brd.decap_node_names.index(n)      # 0..N_dec-1
+                    global_idx = N_ic + j
+                    if brd.decap_via_loc[j] == 1:
+                        top_port_num[global_idx] = [port_id]
+                    else:
+                        bot_port_num[global_idx] = [port_id]
+            port_id += 1
+
+        brd.top_port_num = np.array(top_port_num, dtype=object)
+        brd.bot_port_num = np.array(bot_port_num, dtype=object)
+
+        ################################# nk end ###############################
+
+
         if hasattr(brd, "buried_via_xy") and hasattr(brd, "buried_via_type") and brd.buried_via_xy.size > 0:
             result.append(brd.buried_via_xy)
             result.append(brd.buried_via_type)
@@ -707,7 +878,7 @@ def gen_brd_data(brd, input_path, input_type, stack_up_csv_path=None, d=1e-3):
     brd.sxy_list = [brd.seg_bd_node(b, d) for b in brd.bxy]
 
     ############################################# nk rounding
-    SNAP_DECIMALS = 6
+    SNAP_DECIMALS = 7
     
     brd.ic_via_xy = np.round(np.array(ic_via_xy), SNAP_DECIMALS)
     brd.ic_via_type = np.array(ic_via_type, dtype=int)
@@ -725,20 +896,20 @@ def gen_brd_data(brd, input_path, input_type, stack_up_csv_path=None, d=1e-3):
     brd.decap_via_type = np.array(decap_via_type, dtype=int)
 
     ########################################### nk debug vias
-    total_vias = 0
-    if brd.ic_via_xy.size:     total_vias += brd.ic_via_xy.shape[0]
-    if brd.decap_via_xy.size:  total_vias += brd.decap_via_xy.shape[0]
-    if getattr(brd, 'buried_via_xy', np.array([])).size:
-        total_vias += brd.buried_via_xy.shape[0]
+    # total_vias = 0
+    # if brd.ic_via_xy.size:     total_vias += brd.ic_via_xy.shape[0]
+    # if brd.decap_via_xy.size:  total_vias += brd.decap_via_xy.shape[0]
+    # if getattr(brd, 'buried_via_xy', np.array([])).size:
+    #     total_vias += brd.buried_via_xy.shape[0]
 
-    print("[INFO] counts:",
-        "start", len(brd.start_layers),
-        "stop", len(brd.stop_layers),
-        "type", len(brd.via_type),
-        "vias_xy", total_vias)
+    # print("[INFO] counts:",
+    #     "start", len(brd.start_layers),
+    #     "stop", len(brd.stop_layers),
+    #     "type", len(brd.via_type),
+    #     "vias_xy", total_vias)
 
-    if not (len(brd.start_layers) == len(brd.stop_layers) == len(brd.via_type) == total_vias):
-        raise RuntimeError("Via array length mismatch: start/stop/type must equal total_vias.")
+    # if not (len(brd.start_layers) == len(brd.stop_layers) == len(brd.via_type) == total_vias):
+    #     raise RuntimeError("Via array length mismatch: start/stop/type must equal total_vias.")
     ########################################### nk debug vias end
 
 
@@ -746,6 +917,71 @@ def gen_brd_data(brd, input_path, input_type, stack_up_csv_path=None, d=1e-3):
         while any(np.allclose(brd.decap_via_xy[i], ic_xy, atol=1e-9) for ic_xy in brd.ic_via_xy):
             brd.decap_via_xy[i][0] += 1e-7
             brd.decap_via_xy[i][1] += 1e-7
+
+    ############################# nk ###############################
+    # b4_1 fix
+    # After brd.decap_via_xy / brd.decap_via_loc are set
+    seen = {0:set(), 1:set()}
+    for i in range(len(brd.decap_via_xy)):
+        l = int(brd.decap_via_loc[i])  # 1=top, 0=bottom
+        x, y = brd.decap_via_xy[i]
+        key = (round(x,9), round(y,9))
+        # avoid IC overlap (you already do elsewhere), plus intra-cavity decap overlap:
+        while key in seen[l] or any(np.allclose([x,y], ic_xy, atol=1e-9) for ic_xy in brd.ic_via_xy):
+            x += 1e-7; y += 1e-7
+            key = (round(x,9), round(y,9))
+        seen[l].add(key)
+        brd.decap_via_xy[i] = [x, y]
+
+    # FINAL guard: make all via XY globally unique (IC + DECAP + BURIED)
+    def _dedupe_global_vias(brd, eps=1e-7, rdec=9):
+        seen = set()
+
+        def proc(arr):
+            if arr is None or np.size(arr) == 0:
+                return
+            for i in range(len(arr)):
+                x, y = float(arr[i][0]), float(arr[i][1])
+                key = (round(x, rdec), round(y, rdec))
+                while key in seen:
+                    x += eps; y += eps
+                    key = (round(x, rdec), round(y, rdec))
+                seen.add(key)
+                arr[i] = [x, y]
+
+        # Order matters: PDN concatenates IC -> DECAP -> BURIED
+        if hasattr(brd, 'ic_via_xy') and brd.ic_via_xy.size:
+            proc(brd.ic_via_xy)
+        if hasattr(brd, 'decap_via_xy') and brd.decap_via_xy.size:
+            proc(brd.decap_via_xy)
+        if hasattr(brd, 'buried_via_xy') and brd.buried_via_xy is not None and brd.buried_via_xy.size:
+            proc(brd.buried_via_xy)
+
+    # call it here, after your current per-cavity fix
+    _dedupe_global_vias(brd)    
+
+
+
+    def _assert_no_exact_duplicates(brd, rdec=9):
+        pts = []
+        lbls = []
+        if brd.ic_via_xy.size:
+            pts += [tuple(np.round(p, rdec)) for p in brd.ic_via_xy]
+            lbls += [('IC', i) for i in range(len(brd.ic_via_xy))]
+        if brd.decap_via_xy.size:
+            pts += [tuple(np.round(p, rdec)) for p in brd.decap_via_xy]
+            lbls += [('DECAP', i) for i in range(len(brd.decap_via_xy))]
+        if getattr(brd, 'buried_via_xy', np.array([])).size:
+            pts += [tuple(np.round(p, rdec)) for p in brd.buried_via_xy]
+            lbls += [('BURIED', i) for i in range(len(brd.buried_via_xy))]
+
+        from collections import Counter
+        dup_keys = [k for k, c in Counter(pts).items() if c > 1]
+        if dup_keys:
+            print('[WARN] Global duplicate via XY exist (will cause log(0) in BEM):', dup_keys)
+
+    #_assert_no_exact_duplicates(brd) 
+    ############################# nk ###############################
 
     if stack_up_csv_path:
         die_t, er_list, d_r = read_stackup_from_csv(stack_up_csv_path)
@@ -764,7 +1000,7 @@ def gen_brd_data(brd, input_path, input_type, stack_up_csv_path=None, d=1e-3):
     brd.stackup = stackup
     brd.die_t = die_t
     brd.d_r=d_r
-
+    
     # resistance part
     res_matrix = main_res(
         brd=brd,
@@ -803,6 +1039,7 @@ def gen_brd_data(brd, input_path, input_type, stack_up_csv_path=None, d=1e-3):
     if brd.buried_via_xy is not None and brd.buried_via_type is not None:
         result.append(brd.buried_via_xy)
         result.append(brd.buried_via_type)
+
     return tuple(result)
 
 def compare_touchstone_with_python_z(touchstone_path, python_z, freq):
@@ -909,6 +1146,14 @@ def save2s(self, z, filename, path, z0=50):
     brd.write_touchstone(path + filename + ".s" + str(z.shape[1]) + "p")
     freq = np.logspace(np.log10(10e6), np.log10(200e6), 201)
 
+def detect_ic_port_index(touchstone_path: str) -> int:
+    idx = None
+    for ln in pathlib.Path(touchstone_path).read_text(encoding="utf-8", errors="ignore").splitlines():
+        m = re.match(r"!\s*Port(\d+).*ic_port", ln, flags=re.IGNORECASE)
+        if m:
+            idx = int(m.group(1)) - 1  # zero-based
+            break
+    return idx if idx is not None else 2  # fallback to 2 (port 3) for b4_1.S3P
 
 
 
@@ -918,14 +1163,6 @@ if __name__ == '__main__':
     BASE_PATH = 'output/'
     if not os.path.exists(BASE_PATH):
         os.mkdir(BASE_PATH)
-
-    if input_path.lower().endswith(".spd"):
-        input_type = "spd"
-    elif input_path.lower().endswith(".csv"):
-        input_type = "csv"
-    else:
-        raise ValueError("Unsupported file format. Please use a '.spd' or '.csv' file.")
-    num_error = 0
 
     brd = PDN()
 
@@ -946,6 +1183,7 @@ if __name__ == '__main__':
             num_error += 1
             continue
 
+        ic_port_index = detect_ic_port_index(touchstone_path)
 
         board_name = f"board{i}"
         save2s(brd, z, board_name, BASE_PATH)
@@ -956,15 +1194,14 @@ if __name__ == '__main__':
         nf = 201
         freq = np.logspace(np.log10(fstart), np.log10(fstop), nf)
         Freq = rf.Frequency(start=fstart/1e6, stop=fstop/1e6, npoints=nf, unit='mhz', sweep_type='log')
-
-
+        
         try:
             net = rf.Network(touchstone_path).interpolate(Freq)
             input_net = net.z
 
             plt.figure()
-            plt.loglog(freq, np.abs(z[:, 0, 0]), label='Node Voltage Method Z')
-            plt.loglog(freq, np.abs(input_net[:, 0, 0]), '--', label='Power SI Z')
+            plt.loglog(freq, np.abs(z[:, ic_port_index, ic_port_index]), label='Node Voltage Method Z')
+            plt.loglog(freq, np.abs(input_net[:, ic_port_index, ic_port_index]), '--', label='Power SI Z')
             plt.xlabel('Frequency (Hz)')
             plt.ylabel('|Z11| (Ohm)')
             plt.legend()

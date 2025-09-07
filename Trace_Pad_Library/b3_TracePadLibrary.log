@@ -1,0 +1,24 @@
+ Report For the Trace/CPL and PAD Library: 
+ [Product] :   Layout Workbench_24.1.0.10141.541387   000
+ [Lossy]   :   YES
+ [Library] :   
+   [Number]:   0
+
+ [Structure Number For Extraction]:
+   Coplanar Trace:    0, CPL:    0 ==>They are not in the library
+   The Trace found    0, not found    0
+   The CPL   found    0, not found    0
+   The CPL_w found    0, not found    0
+   The PAD   found    0, not found    0
+   The VIA   found    0, not found    0
+ [Time For Extraction]:
+   Trace: 0.000046 sec. 
+   CPL  : 0.000203 sec. 
+   PAD  : 0.000067 sec. 
+   VIA  : 0.000166 sec. 
+
+ [Library]: C:\Users\nkfzm\OneDrive - University of Missouri\Desktop\Research\Code\PDN\Trace_Pad_Library\b3_lossy.lib
+   There are    0 single trace,    0 cpl and    0 pad,    0 via are added at the end
+
+
+							2025-09-07 15:15:17
