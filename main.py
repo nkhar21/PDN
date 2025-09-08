@@ -161,11 +161,11 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
         import numpy as np
         import re
 
-        def is_duplicate_shape(new_shape, existing_shapes, tol=1e-9):
-            for shape in existing_shapes:
-                if shape.shape == new_shape.shape and np.allclose(shape, new_shape, atol=tol):
-                    return True
-            return False
+        # def is_duplicate_shape(new_shape, existing_shapes, tol=1e-9):
+        #     for shape in existing_shapes:
+        #         if shape.shape == new_shape.shape and np.allclose(shape, new_shape, atol=tol):
+        #             return True
+        #     return False
 
         shape_section = re.findall(r"\.Shape\s+(ShapeSignal\d+)\n((?:(?:Box|Polygon).*?\n(?:\+.*?\n)?)?)", content)
 
@@ -546,7 +546,7 @@ def parse_input(brd, via_spd_path=None, via_csv_path=None):
         brd.decap_via_loc = np.array(dec_locs, dtype=int)
 
         #################################### nk ##############################
-
+        print("Board polygons extracted:", brd.bxy)
 
 
         # --- Return ---
