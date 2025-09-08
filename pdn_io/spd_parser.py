@@ -43,7 +43,7 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
 
     # 2) Nodes (coords, type, layer) -> node_info (with both raw+canon keys)
     node_info = _extract_nodes(text)
-    log("\nNodes extracted:\n", len(node_info), "examples:\n", list(node_info.items())[:3])
+    log("\nNodes extracted:\n", len(node_info), "examples:\n", list(node_info.items()))
 
     # 3) .Connect blocks -> ic_blocks, decap_blocks (preserving order)
     ic_blocks, decap_blocks = _extract_connect_blocks(text)
@@ -234,16 +234,13 @@ def _extract_board_polygons(text: str, *, tol: float = 1e-9) -> List[np.ndarray]
 
 def _extract_nodes(text: str):
     """
-    Build node_info dict with BOTH raw ('Node013') and canon ('Node13') keys:
-      node_info[name] = {'type': 1|0, 'x': mm, 'y': mm, 'layer': int}
+    Build node_info dict with ONLY canonical keys ('Node013' -> 'Node13'):
+      node_info['Node13'] = {'type': 1|0, 'x': mm, 'y': mm, 'layer': int}
     Notes:
       - 'type' is 1 for PWR, 0 otherwise (GND/empty)
       - x, y are kept in millimeters (convert to meters at use-site)
       - 'layer' is the integer from 'Signal##'
     """
-    # Matches lines like:
-    # Node013::PWR X = 12.3mm Y = 4.56mm Layer = Signal3
-    # Node7       X =  1.0mm Y = 2.0mm   Layer = Signal5
     pattern = (
         r"(Node\d+)"                  # raw node name
         r"(?:::)?(PWR|GND)?"          # optional ::PWR or ::GND
@@ -258,20 +255,15 @@ def _extract_nodes(text: str):
     for raw, typ, x_str, y_str, layer_str in node_lines:
         info = {
             "type": 1 if (typ and typ.lower() == "pwr") else 0,
-            "x": float(x_str),             # mm
-            "y": float(y_str),             # mm
-            "layer": int(layer_str)        # e.g., Signal03 -> 3
+            "x": float(x_str),       # mm
+            "y": float(y_str),       # mm
+            "layer": int(layer_str)  # e.g., Signal03 -> 3
         }
-        canon = canon_node(raw)            # e.g., "Node013" -> "Node13"
-        node_info[canon] = info
-        node_info[raw]   = info            # accept both forms
-
-    # Ensure every existing key has its canonical form mapped too
-    # (harmless if already present; keeps behavior identical to your main.py)
-    for k, v in list(node_info.items()):
-        node_info[canon_node(k)] = v
+        canon = canon_node(raw)      # e.g., "Node013" -> "Node13"
+        node_info[canon] = info      # <-- ONLY canonical key
 
     return node_info
+
 
 def _extract_connect_blocks(text: str):
     """

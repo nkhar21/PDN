@@ -27,7 +27,7 @@ def _coerce_to_df(obj: CsvLike, kind: str) -> pd.DataFrame:
     return pd.read_csv(p)
 
 
-def read_stackup_from_csv(stack_up_csv: CsvLike) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def read_stackup(stack_up_csv: CsvLike) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Read the stackup (e.g., b3_stackup.csv) from a path or a DataFrame.
 
@@ -63,7 +63,7 @@ def read_stackup_from_csv(stack_up_csv: CsvLike) -> Tuple[np.ndarray, np.ndarray
     return die_t, ers, d_r
 
 
-def read_layer_type_csv(layer_type_csv: CsvLike) -> pd.DataFrame:
+def read_layer_type(layer_type_csv: CsvLike) -> pd.DataFrame:
     """
     Read the layer-type (e.g., b3_layer_type.csv) from a path or a DataFrame.
 
@@ -161,7 +161,7 @@ def load_layer_and_stackup(layer_type_csv: CsvLike, stack_up_csv: CsvLike):
         die_t, er_list, d_r, stackup_mask, layer_type_df
     Accepts either paths or DataFrames for both inputs.
     """
-    die_t, er_list, d_r = read_stackup_from_csv(stack_up_csv)
-    lt_df = read_layer_type_csv(layer_type_csv)
+    die_t, er_list, d_r = read_stackup(stack_up_csv)
+    lt_df = read_layer_type(layer_type_csv)
     stackup_mask = build_stackup_mask(lt_df)
     return die_t, er_list, d_r, stackup_mask, lt_df

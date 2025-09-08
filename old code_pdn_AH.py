@@ -16,6 +16,62 @@ def max_value(inputlist):
     return max([max(sublist) for sublist in inputlist])
 
 
+# def connect_pkg_pdn(Z_pkg, Z_pdn, s_ports, p_ports, m_port, q_ports, c_ports, Zdd, Ic): 
+#     Zqc = Z_pdn[np.ix_(list(range(0, Z_pdn.shape[0])), q_ports, c_ports)]
+#     Zcc = Z_pdn[np.ix_(list(range(0, Z_pdn.shape[0])), c_ports, c_ports)]
+#     Zcq = Z_pdn[np.ix_(list(range(0, Z_pdn.shape[0])), c_ports, q_ports)]
+#     Zqq = Z_pdn[np.ix_(list(range(0, Z_pdn.shape[0])), q_ports, q_ports)]
+
+#     Zpp = Z_pkg[np.ix_(list(range(0, Z_pkg.shape[0])), p_ports, p_ports)]
+#     Zps = Z_pkg[np.ix_(list(range(0, Z_pkg.shape[0])), p_ports, s_ports)]
+
+#     Zms = Z_pkg[np.ix_(list(range(0, Z_pkg.shape[0])), m_port, s_ports)]
+#     Zmp = Z_pkg[np.ix_(list(range(0, Z_pkg.shape[0])), m_port, p_ports)]
+#     Zpm = Z_pkg[np.ix_(list(range(0, Z_pkg.shape[0])), p_ports, m_port)]
+#     Zmm = Z_pkg[np.ix_(list(range(0, Z_pkg.shape[0])), m_port, m_port)]
+
+#     Zx = np.einsum('rmn,rnk->rmk', Zqc, np.linalg.inv(Zcc + Zdd)) 
+#     Zx = np.einsum('rmn,rnk->rmk', Zx, Zcq)
+#     Zx = Zx - Zqq - Zpp
+#     Zx_inv = np.linalg.inv(Zx)
+
+#     Vo_num = np.einsum('rmn,rnk->rmk', Zx_inv, Zps) 
+#     Vo_num = np.einsum('rmn,rnk->rmk', Zmp, Vo_num)
+#     Vo_num = np.einsum('rmn,rnk->rmk', 50 * (Zms + Vo_num), Ic)
+
+#     Vo_denom = np.einsum('rmn,rnk->rmk', Zx_inv, Zpm) 
+#     Vo_denom = np.einsum('rmn,rnk->rmk', Zmp, Vo_denom)
+#     Vo_denom = np.ones(Zmm.shape) * 50 + Vo_denom + Zmm
+
+#     Vo = Vo_num / Vo_denom
+
+#     return Vo
+
+
+# merge certain ports in z parameters
+# def merge_ports(z_orig, map2orig_input, merge_port_list, kept_port=0):
+#     # merge_port_list, kept_port index begins with 0
+#     orig_port_list = list(range(0, z_orig.shape[1]))
+#     del_ports = deepcopy(merge_port_list)
+#     del_ports.remove(kept_port)
+#     left_port_list = deepcopy(orig_port_list)
+#     for a in del_ports:
+#         left_port_list.remove(a)
+#     map2orig_output = [map2orig_input[i] for i in left_port_list]
+#     # calculate inverse z matrix
+#     z_inv = np.linalg.inv(z_orig)
+#     if len(orig_port_list) > len(merge_port_list):
+#         # merge ports by adding the corresponding rows and columns
+#         reduce_list = list([kept_port, merge_port_list[-1] + 1]) + list(
+#             range(merge_port_list[-1] + 2, orig_port_list[-1] + 1))
+#         z_inv_merge = np.add.reduceat(np.add.reduceat(z_inv, reduce_list, axis=1), reduce_list, axis=2)
+#     else:
+#         z_inv_merge = np.add.reduceat(np.add.reduceat(z_inv, [0], axis=1), [0], axis=2)
+#     z_merge = np.linalg.inv(z_inv_merge)
+#     # port_map_orig is the port map to the original port number
+#     return z_merge, map2orig_output
+
+
 def seg_port(x0, y0, r, n=6):
     # Define a function for port segmentation
     # for port boundary, it must rotate clockwise
@@ -44,6 +100,17 @@ def short_1port(input_net, map2orig_input=[0, 1], shorted_port=1):
     return output_net, map2orig_output
 
 
+# short several ports of S-parameter
+def short_nport(input_net, map2orig_input, shorted_ports):
+    output_net = deepcopy(input_net)
+    map2orig_output = list(range(0, output_net.s.shape[1]))
+    for a in shorted_ports:
+        output_net, map2orig_output = short_1port(output_net, map2orig_output,
+                                                  shorted_port=map2orig_output.index(a))
+    map2orig_output = [map2orig_input[i] for i in map2orig_output]
+    return output_net, map2orig_output
+
+
 def connect_1decap(input_net_z, map2orig_input, connect_port, decap_z11):
     Zaa = deepcopy(input_net_z)
     Zaa = np.delete(Zaa, connect_port, 1)
@@ -64,6 +131,38 @@ def connect_1decap(input_net_z, map2orig_input, connect_port, decap_z11):
     map2orig_output = deepcopy(map2orig_input)
     del map2orig_output[connect_port]
     return output_net_z, map2orig_output
+
+
+def connect_z(z1, a_ports, p_ports, z2, q_ports):
+    Zaa = z1[np.ix_(list(range(0, z1.shape[0])), a_ports, a_ports)]
+    Zpp = z1[np.ix_(list(range(0, z1.shape[0])), p_ports, p_ports)]
+    Zap = z1[np.ix_(list(range(0, z1.shape[0])), a_ports, p_ports)]
+    Zpa = z1[np.ix_(list(range(0, z1.shape[0])), p_ports, a_ports)]
+    Zqq = z2[np.ix_(list(range(0, z1.shape[0])), q_ports, q_ports)]
+    z_connect = Zaa - np.einsum('rmn,rnd->rmd', np.einsum('rmn,rnd->rmd', Zap, np.linalg.inv(Zpp + Zqq)), Zpa)
+    return z_connect
+
+
+# connect z1 and z2, and keep the ports for z1
+def connect_z_keep_ports(z1, a_ports, p_ports, z2, d_ports):
+    Zaa = z1[np.ix_(list(range(0, z1.shape[0])), a_ports, a_ports)]
+    Zpp = z1[np.ix_(list(range(0, z1.shape[0])), p_ports, p_ports)]
+    Zap = z1[np.ix_(list(range(0, z1.shape[0])), a_ports, p_ports)]
+    Zpa = z1[np.ix_(list(range(0, z1.shape[0])), p_ports, a_ports)]
+    Zdd = z2[np.ix_(list(range(0, z1.shape[0])), d_ports, d_ports)]
+    shape = Zpp.shape
+    I = np.zeros(shape)
+    I[:, np.arange(shape[1]), np.arange(shape[1])] = 1
+    z_output = deepcopy(z1)
+    z_output[np.ix_(list(range(0, z1.shape[0])), a_ports, a_ports)] = \
+        Zaa - np.einsum('rmn,rnd->rmd', np.einsum('rmn,rnd->rmd', Zap, np.linalg.inv(Zpp + Zdd)), Zpa)
+    z_output[np.ix_(list(range(0, z1.shape[0])), a_ports, p_ports)] = \
+        np.einsum('rmn,rnd->rmd', Zap, I - np.linalg.inv(I + np.einsum('rmn,rnd->rmd', np.linalg.inv(Zpp), Zdd)))
+    z_output[np.ix_(list(range(0, z1.shape[0])), p_ports, a_ports)] = \
+        np.einsum('rmn,rnd->rmd', np.linalg.inv(I + np.einsum('rmn,rnd->rmd', Zpp, np.linalg.inv(Zdd))), Zpa)
+    z_output[np.ix_(list(range(0, z1.shape[0])), p_ports, p_ports)] = \
+        np.linalg.inv(np.linalg.inv(Zpp) + np.linalg.inv(Zdd))
+    return z_output
 
 
 def delete_multiple_element(list_object, indices):
@@ -1258,6 +1357,342 @@ class PDN():
         #self.C_pul = self.er * e * self.area / 1
         self.C_pul = np.array([er * e * area / 1 for er, area in zip(self.er_list, self.area)])        
 
+
+    # def calc_mat_wo_decap(self):
+    #     # calculate D, L, Gh matrix using for loop, which is time-consuming
+    #     # Especially for many vias, this process is time-consuming
+    #     u = 4 * pi * 1e-7
+    #     d = 1
+
+    #     Ntot = self.ic_via_xy.shape[0] + self.sxy.shape[0]
+    #     self.D = np.zeros((Ntot, Ntot))
+    #     self.Gh = np.zeros((Ntot, Ntot))
+    #     self.L_pul = np.zeros((self.ic_via_xy.shape[0], self.ic_via_xy.shape[0]))
+    #     for k in range(0, Ntot):
+    #         for m in range(0, Ntot):
+    #             if m >= self.sxy.shape[0] and k != m:
+    #                 self.D[k, m] = 0
+    #             elif m >= self.sxy.shape[0] and k == m:
+    #                 self.D[k, m] = -1
+    #             elif m < self.sxy.shape[0] and k >= self.sxy.shape[0]:
+    #                 xk = self.ic_via_xy[k - self.sxy.shape[0], 0]
+    #                 yk = self.ic_via_xy[k - self.sxy.shape[0], 1]
+    #                 xa = self.sxy[m, 0]
+    #                 ya = self.sxy[m, 1]
+    #                 xe = self.sxy[m, 2]
+    #                 ye = self.sxy[m, 3]
+    #                 lm = sqrt((xa - xe) ** 2 + (ya - ye) ** 2)
+    #                 v1 = 1 / lm * ((xk - xa) * (xe - xa) + (yk - ya) * (ye - ya))
+    #                 v2 = -1 / lm * ((xk - xa) * (ye - ya) - (yk - ya) * (xe - xa))
+    #                 ra = sqrt((xa - xk) ** 2 + (ya - yk) ** 2)
+    #                 if np.abs(v2) < 1e-10:
+    #                     self.D[k, m] = 0
+    #                 else:
+    #                     self.D[k, m] = v2 / pi * (
+    #                                 1 / sqrt(ra ** 2 - v1 ** 2) * (atan((-v1 + lm) / sqrt(ra ** 2 - v1 ** 2)) +
+    #                                                                atan(v1 / sqrt(ra ** 2 - v1 ** 2))) - lm / (
+    #                                             self.R ** 2))
+    #             elif m < self.sxy.shape[0] and k < self.sxy.shape[0]:
+    #                 xk = (self.sxy[k, 0] + self.sxy[k, 2]) / 2
+    #                 yk = (self.sxy[k, 1] + self.sxy[k, 3]) / 2
+    #                 xa = self.sxy[m, 0]
+    #                 ya = self.sxy[m, 1]
+    #                 xe = self.sxy[m, 2]
+    #                 ye = self.sxy[m, 3]
+    #                 lm = sqrt((xa - xe) ** 2 + (ya - ye) ** 2)
+    #                 v1 = 1 / lm * ((xk - xa) * (xe - xa) + (yk - ya) * (ye - ya))
+    #                 v2 = -1 / lm * ((xk - xa) * (ye - ya) - (yk - ya) * (xe - xa))
+    #                 ra = sqrt((xa - xk) ** 2 + (ya - yk) ** 2)
+    #                 if np.abs(v2) < 1e-10:
+    #                     self.D[k, m] = 0
+    #                 else:
+    #                     self.D[k, m] = v2 / pi * (
+    #                                 1 / sqrt(ra ** 2 - v1 ** 2) * (atan((-v1 + lm) / sqrt(ra ** 2 - v1 ** 2)) +
+    #                                                                atan(v1 / sqrt(ra ** 2 - v1 ** 2))) - lm / (
+    #                                             self.R ** 2))
+    #     for k in range(0, Ntot):
+    #         for m in range(0, Ntot):
+    #             if m >= self.sxy.shape[0] and k == m:
+    #                 self.Gh[k, m] = -u * d / (4 * self.area) * (self.via_r ** 2) * (4 * log(self.via_r / self.R) - 1)
+    #             elif m >= self.sxy.shape[0] and k != m:
+    #                 self.Gh[k, m] = 0
+    #             elif m < self.sxy.shape[0] and k >= self.sxy.shape[0]:
+    #                 xk = self.ic_via_xy[k - self.sxy.shape[0], 0]
+    #                 yk = self.ic_via_xy[k - self.sxy.shape[0], 1]
+    #                 xa = self.sxy[m, 0]
+    #                 ya = self.sxy[m, 1]
+    #                 xe = self.sxy[m, 2]
+    #                 ye = self.sxy[m, 3]
+    #                 lm = sqrt((xa - xe) ** 2 + (ya - ye) ** 2)
+    #                 v1 = 1 / lm * ((xk - xa) * (xe - xa) + (yk - ya) * (ye - ya))
+    #                 v2 = -1 / lm * ((xk - xa) * (ye - ya) - (yk - ya) * (xe - xa))
+    #                 ra = sqrt((xa - xk) ** 2 + (ya - yk) ** 2)
+    #                 if np.abs(v2) < 1e-10:
+    #                     self.Gh[k, m] = 0
+    #                 else:
+    #                     self.Gh[k, m] = u * d * v2 / (4 * pi * self.area) * (
+    #                                 lm * log((lm ** 2 + ra ** 2 - 2 * v1 * lm) / self.R ** 2) -
+    #                                 v1 * log((lm ** 2 + ra ** 2 - 2 * v1 * lm) / ra ** 2)
+    #                                 - (1 / 3 * lm ** 3 + ra ** 2 * lm - lm ** 2 * v1) / (2 * self.R ** 2) - 3 * lm
+    #                                 + 2 * sqrt(ra ** 2 - v1 ** 2) *
+    #                                 (atan((-v1 + lm) / sqrt(ra ** 2 - v1 ** 2)) + atan(v1 / sqrt(ra ** 2 - v1 ** 2))))
+    #             elif m < self.sxy.shape[0] and k < self.sxy.shape[0]:
+    #                 xk = (self.sxy[k, 0] + self.sxy[k, 2]) / 2
+    #                 yk = (self.sxy[k, 1] + self.sxy[k, 3]) / 2
+    #                 xa = self.sxy[m, 0]
+    #                 ya = self.sxy[m, 1]
+    #                 xe = self.sxy[m, 2]
+    #                 ye = self.sxy[m, 3]
+    #                 lm = sqrt((xa - xe) ** 2 + (ya - ye) ** 2)
+    #                 v1 = 1 / lm * ((xk - xa) * (xe - xa) + (yk - ya) * (ye - ya))
+    #                 v2 = -1 / lm * ((xk - xa) * (ye - ya) - (yk - ya) * (xe - xa))
+    #                 ra = sqrt((xa - xk) ** 2 + (ya - yk) ** 2)
+    #                 if np.abs(v2) < 1e-10:
+    #                     self.Gh[k, m] = 0
+    #                 else:
+    #                     self.Gh[k, m] = u * d * v2 / (4 * pi * self.area) * (
+    #                                 lm * log((lm ** 2 + ra ** 2 - 2 * v1 * lm) / self.R ** 2) -
+    #                                 v1 * log((lm ** 2 + ra ** 2 - 2 * v1 * lm) / ra ** 2)
+    #                                 - (1 / 3 * lm ** 3 + ra ** 2 * lm - lm ** 2 * v1) / (2 * self.R ** 2) - 3 * lm
+    #                                 + 2 * sqrt(ra ** 2 - v1 ** 2) *
+    #                                 (atan((-v1 + lm) / sqrt(ra ** 2 - v1 ** 2)) + atan(v1 / sqrt(ra ** 2 - v1 ** 2))))
+    #     E_D_inv = np.linalg.inv(np.identity(Ntot) - self.D)
+    #     Gh_k = np.sum(self.Gh, axis=1)
+    #     G_k = np.zeros((Ntot))
+    #     # Excite each via and obtain inductance
+    #     for j in range(0, self.ic_via_xy.shape[0]):
+    #         m = j + self.sxy.shape[0]
+    #         for k in range(0, Ntot):
+    #             if k == m:
+    #                 G_k[k] = -u * d / pi * log(self.via_r / self.R)
+    #             elif k != m and k >= self.sxy.shape[0]:
+    #                 r_km = sqrt(
+    #                     (self.ic_via_xy[m - self.sxy.shape[0], 0] - self.ic_via_xy[k - self.sxy.shape[0], 0]) ** 2
+    #                     + (self.ic_via_xy[m - self.sxy.shape[0], 1] - self.ic_via_xy[k - self.sxy.shape[0], 1]) ** 2)
+    #                 G_k[k] = -u * d / pi * (log(r_km / self.R) - r_km ** 2 / (2 * self.R ** 2))
+    #             else:
+    #                 xm = self.ic_via_xy[m - self.sxy.shape[0], 0]
+    #                 ym = self.ic_via_xy[m - self.sxy.shape[0], 1]
+    #                 xk = (self.sxy[k, 0] + self.sxy[k, 2]) / 2
+    #                 yk = (self.sxy[k, 1] + self.sxy[k, 3]) / 2
+    #                 r_km = sqrt((xm - xk) ** 2 + (ym - yk) ** 2)
+    #                 G_k[k] = -u * d / pi * (log(r_km / self.R) - r_km ** 2 / (2 * self.R ** 2))
+    #         G = Gh_k + G_k
+    #         L = np.dot(E_D_inv, G)
+    #         self.L_pul[:, j] = L[self.sxy.shape[0]:Ntot]
+    #     # add internal inductance
+    #     for i in range(0, self.L_pul.shape[0]):
+    #         self.L_pul[i, i] += u * d / (8 * pi)
+    #     self.z_orig = self.calc_z_from_Lpul(self.stackup, self.via_type, self.via_loc,
+    #                                         self.die_t, self.L_pul, self.C_pul, self.freq.f)
+    #     if np.where(self.ic_via_type == 1)[0].shape[0] > 1:
+    #         self.z_mergeIC_no_decap, _ = merge_ports(self.z_orig,
+    #                                                  list(range(0, np.where(self.ic_via_type == 1)[0].shape[0])),
+    #                                                  list(range(0, np.where(self.ic_via_type == 1)[0].shape[0])))
+    #     else:
+    #         self.z_mergeIC_no_decap = self.z_orig
+
+    # def add_via(self, via_x, via_y, via_type, via_loc):
+    #     d = 1
+    #     u = 4 * pi * 1e-7
+    #     via_xy_new = np.ndarray((self.via_xy.shape[0] + 1, 2))
+    #     via_xy_new[0:self.via_xy.shape[0], :] = self.via_xy
+    #     via_xy_new[self.via_xy.shape[0], 0] = via_x
+    #     via_xy_new[self.via_xy.shape[0], 1] = via_y
+    #     self.via_xy = via_xy_new
+    #     via_type_new = np.ndarray((self.via_type.shape[0] + 1))
+    #     via_type_new[0:self.via_type.shape[0]] = self.via_type
+    #     via_type_new[self.via_type.shape[0]] = via_type
+    #     self.via_type = via_type_new
+    #     via_loc_new = np.ndarray((self.via_loc.shape[0] + 1))
+    #     via_loc_new[0:self.via_loc.shape[0]] = self.via_loc
+    #     via_loc_new[self.via_loc.shape[0]] = via_loc
+    #     self.via_loc = via_loc_new
+
+    #     D_new = np.zeros([self.D.shape[0] + 1, self.D.shape[0] + 1])
+    #     Gh_new = np.zeros([self.Gh.shape[0] + 1, self.Gh.shape[0] + 1])
+    #     L_pul_new = np.zeros([self.L_pul.shape[0] + 1, self.L_pul.shape[0] + 1])
+    #     G_k_new = np.zeros((self.D.shape[0] + 1))
+    #     D_new[0:self.D.shape[0], 0:self.D.shape[0]] = self.D
+    #     Gh_new[0:self.Gh.shape[0], 0:self.Gh.shape[0]] = self.Gh
+    #     L_pul_new[0:self.L_pul.shape[0], 0:self.L_pul.shape[0]] = self.L_pul
+    #     D_new[0:self.D.shape[0], self.D.shape[0]] = 0
+    #     D_new[self.D.shape[0], self.D.shape[0]] = -1
+    #     Gh_new[0:self.D.shape[0], self.D.shape[0]] = 0
+    #     Gh_new[self.D.shape[0], self.D.shape[0]] = -u * d / (4 *
+    #                                                          self.area) * (self.via_r ** 2) * (
+    #                                                            4 * log(self.via_r / self.R) - 1)
+
+    #     for m in range(0, self.D.shape[0]):
+    #         k = self.D.shape[0]
+    #         if m >= self.sxy.shape[0]:
+    #             D_new[k, m] = 0
+    #             Gh_new[k, m] = 0
+    #         else:
+    #             xk = self.via_xy[k - self.sxy.shape[0], 0]
+    #             yk = self.via_xy[k - self.sxy.shape[0], 1]
+    #             xa = self.sxy[m, 0]
+    #             ya = self.sxy[m, 1]
+    #             xe = self.sxy[m, 2]
+    #             ye = self.sxy[m, 3]
+    #             lm = sqrt((xa - xe) ** 2 + (ya - ye) ** 2)
+    #             v1 = 1 / lm * ((xk - xa) * (xe - xa) + (yk - ya) * (ye - ya))
+    #             v2 = -1 / lm * ((xk - xa) * (ye - ya) - (yk - ya) * (xe - xa))
+    #             ra = sqrt((xa - xk) ** 2 + (ya - yk) ** 2)
+    #             if np.abs(v2) < 1e-10:
+    #                 D_new[k, m] = 0
+    #                 Gh_new[k, m] = 0
+    #             else:
+    #                 D_new[k, m] = v2 / pi * (1 / sqrt(ra ** 2 - v1 ** 2) * (atan((-v1 + lm) / sqrt(ra ** 2 - v1 ** 2)) +
+    #                                                                         atan(v1 / sqrt(ra ** 2 - v1 ** 2))) - lm / (
+    #                                                      self.R ** 2))
+    #                 Gh_new[k, m] = u * d * v2 / (4 * pi * self.area) * (
+    #                             lm * log((lm ** 2 + ra ** 2 - 2 * v1 * lm) / self.R ** 2) -
+    #                             v1 * log((lm ** 2 + ra ** 2 - 2 * v1 * lm) / ra ** 2)
+    #                             - (1 / 3 * lm ** 3 + ra ** 2 * lm - lm ** 2 * v1) / (2 * self.R ** 2) - 3 * lm
+    #                             + 2 * sqrt(ra ** 2 - v1 ** 2) *
+    #                             (atan((-v1 + lm) / sqrt(ra ** 2 - v1 ** 2)) + atan(v1 / sqrt(ra ** 2 - v1 ** 2))))
+    #     self.D = D_new
+    #     self.Gh = Gh_new
+    #     E_D_inv = np.linalg.inv(np.identity(self.D.shape[0]) - self.D)
+    #     Gh_k_new = np.sum(self.Gh, axis=1)
+    #     for k in range(0, G_k_new.shape[0]):
+    #         m = G_k_new.shape[0] - 1
+    #         if k == m:
+    #             G_k_new[k] = -u * d / pi * log(self.via_r / self.R)
+    #         elif k != m and k >= self.sxy.shape[0]:
+    #             r_km = sqrt((self.via_xy[m - self.sxy.shape[0], 0] - self.via_xy[k - self.sxy.shape[0], 0]) ** 2
+    #                         + (self.via_xy[m - self.sxy.shape[0], 1] - self.via_xy[k - self.sxy.shape[0], 1]) ** 2)
+    #             G_k_new[k] = -u * d / pi * (log(r_km / self.R) - r_km ** 2 / (2 * self.R ** 2))
+    #         else:
+    #             xm = self.via_xy[m - self.sxy.shape[0], 0]
+    #             ym = self.via_xy[m - self.sxy.shape[0], 1]
+    #             xk = (self.sxy[k, 0] + self.sxy[k, 2]) / 2
+    #             yk = (self.sxy[k, 1] + self.sxy[k, 3]) / 2
+    #             r_km = sqrt((xm - xk) ** 2 + (ym - yk) ** 2)
+    #             G_k_new[k] = -u * d / pi * (log(r_km / self.R) - r_km ** 2 / (2 * self.R ** 2))
+    #     G = Gh_k_new + G_k_new
+    #     L = np.dot(E_D_inv, G)
+    #     L_pul_new[:, G_k_new.shape[0] - self.sxy.shape[0] - 1] = L[self.sxy.shape[0]:G_k_new.shape[0]]
+    #     L_pul_new[G_k_new.shape[0] - self.sxy.shape[0] - 1, :] = L[self.sxy.shape[0]:G_k_new.shape[0]]
+    #     self.L_pul = L_pul_new
+    #     # add self inductance
+    #     self.L_pul[self.L_pul.shape[0] - 1, self.L_pul.shape[0] - 1] += u * d / (8 * pi)
+
+    # def calc_z_from_Lpul(self, stackup, via_type, via_loc, die_t, L_pul, C_pul, freq):
+    #     # only support the top layer and bottom layer are gnd for now !!!!
+    #     # find the node index of the first gnd via and use it as the reference node
+    #     # via_loc is the location for the via, whether on the top(1) or bottom(0) layer
+    #     # Actually only the via_loc for power vias will matter
+    #     # IC vias must be on the top layer
+    #     branch_num = die_t.shape[0] * (via_type.shape[0] + 1)
+    #     node_mat = np.ndarray((stackup.shape[0], via_type.shape[0] + 1), dtype=int)
+    #     top_port_node_list = []
+    #     bot_port_node_list = []
+    #     node = 0
+    #     for r in range(0, stackup.shape[0]):
+    #         for c in range(0, via_type.shape[0]):
+    #             if c == 0:
+    #                 first_same_node = 1
+    #             if stackup[r] != via_type[c]:
+    #                 node_mat[r, c] = node
+    #                 node += 1
+    #             elif stackup[r] == via_type[c] and first_same_node == 1:
+    #                 node_mat[r, c] = node
+    #                 same_node_num = node
+    #                 first_same_node = 0
+    #                 node += 1
+    #             elif stackup[r] == via_type[c] and first_same_node == 0:
+    #                 node_mat[r, c] = same_node_num
+    #             if r == 0 and c == via_type.shape[0] - 1:
+    #                 top_ref_node = same_node_num
+    #             if r == stackup.shape[0] - 1 and c == via_type.shape[0] - 1:
+    #                 bot_ref_node = same_node_num
+    #             if r == 0 and via_type[c] == 1 and via_loc[c] == 1:
+    #                 top_port_node_list.append(node_mat[r, c])
+    #             if r == stackup.shape[0] - 1 and via_type[c] == 1 and via_loc[c] == 0:
+    #                 bot_port_node_list.append(node_mat[r, c])
+
+    #         c = via_type.shape[0]
+    #         node_mat[r, c] = same_node_num
+
+    #     node_num = node
+    #     A = np.zeros((freq.shape[0], node_num, branch_num))  # reduced incidence matrix
+    #     for c in range(0, branch_num):
+    #         r_num = np.floor(c / (via_type.shape[0] + 1)).astype(int)
+    #         c_num = np.remainder(c, via_type.shape[0] + 1)
+    #         begin_node = node_mat[r_num, c_num]
+    #         end_node = node_mat[r_num + 1, c_num]
+    #         A[:, begin_node, c] = 1
+    #         A[:, end_node, c] = -1
+
+    #     Zb = np.zeros((freq.shape[0], branch_num, branch_num), dtype=complex)
+
+    #     for i in range(0, die_t.shape[0]):
+    #         Zb[:, i * (via_type.shape[0] + 1):(i + 1) * (via_type.shape[0] + 1) - 1,
+    #         i * (via_type.shape[0] + 1):(i + 1) * (via_type.shape[0] + 1) - 1] = 1j * 2 * pi * die_t[i] * np.einsum(
+    #             'i,jk->ijk',
+    #             freq, L_pul)
+    #         Zb[:, (i + 1) * (via_type.shape[0] + 1) - 1, (i + 1) * (via_type.shape[0] + 1) - 1] = 1 / (
+    #                     1j * 2 * pi * freq * C_pul) * die_t[i]
+
+    #     Yb = np.linalg.inv(Zb)
+    #     Yn = np.einsum('rmn,rnk->rmk', np.einsum('rmn,rnk->rmk', A, Yb), np.transpose(A, (0, 2, 1)))
+    #     # Yn = np.einsum('rmn,rnk->rmk', A, Yb)
+    #     # Yn = np.einsum('rmn,rnk->rmk', Yn, np.transpose(A,(0,2,1)))
+
+    #     Yn_reduce = np.delete(np.delete(Yn, [top_ref_node], axis=2), [top_ref_node], axis=1)
+    #     ztot = np.linalg.inv(Yn_reduce)
+
+    #     top_port_node_list = [x for x in top_port_node_list if x < top_ref_node] + [x - 1 for x in top_port_node_list if
+    #                                                                                 x > top_ref_node]
+    #     bot_port_node_list = [x - 1 for x in bot_port_node_list]
+    #     bot_ref_node -= 1
+
+    #     # subtract the corresponding rows and columns at the bottom reference node, for bottom decap vias
+    #     for x in bot_port_node_list:
+    #         x = int(x)
+    #         ztot[:, x, :] = ztot[:, x, :] - ztot[:, bot_ref_node, :]
+    #         ztot[:, :, x] = ztot[:, :, x] - ztot[:, :, bot_ref_node]
+
+    #     top_node = 0
+    #     bot_node = 0
+    #     power_port_list = []
+    #     for x in range(0, via_type.shape[0]):
+    #         if via_type[x] == 1 and via_loc[x] == 1:
+    #             power_port_list.append(top_port_node_list[top_node])
+    #             top_node += 1
+    #         elif via_type[x] == 1 and via_loc[x] == 0:
+    #             power_port_list.append(bot_port_node_list[bot_node])
+    #             bot_node += 1
+
+    #     z = ztot[np.ix_(list(range(0, ztot.shape[0])),
+    #                     power_port_list, power_port_list)]
+    #     return z
+
+    # def add_decap(self, xp, yp, xg, yg, model_num, top_bot):
+    #     self.add_via(xp, yp, 1, top_bot)
+    #     self.add_via(xg, yg, 0, top_bot)
+    #     self.decap.append(np.array([xp, yp, xg, yg, model_num, top_bot]))
+    #     if len(self.decap) == 1:
+    #         self.decap_z = np.ndarray((self.freq.f.shape[0], 1, 1))
+    #         self.decap_z = self.decap_list[model_num]
+    #     else:
+    #         decap_z_new = np.zeros((self.freq.f.shape[0], len(self.decap), len(self.decap)), dtype=complex)
+    #         decap_z_new[:, 0:len(self.decap) - 1, 0:len(self.decap) - 1] = self.decap_z
+    #         decap_z_new[:, len(self.decap) - 1, len(self.decap) - 1] = np.squeeze(self.decap_list[model_num])
+    #         self.decap_z = decap_z_new
+    #     self.z_orig = self.calc_z_from_Lpul(self.stackup, self.via_type, self.via_loc,
+    #                                         self.die_t, self.L_pul, self.C_pul, self.freq.f)
+    #     if np.where(self.ic_via_type == 1)[0].shape[0] > 1:  # if more than 1 IC power vias
+    #         self.z_mergeIC_no_decap, _ = merge_ports(self.z_orig, list(range(0, self.z_orig.shape[1])),
+    #                                                  list(range(0, np.where(self.ic_via_type == 1)[0].shape[0])))
+    #     else:
+    #         self.z_mergeIC_no_decap = deepcopy(self.z_orig)
+    #     self.z_mergeIC_with_decap = connect_z(self.z_mergeIC_no_decap, [0], list(range(1, 1 + len(self.decap))),
+    #                                           self.decap_z, list(range(0, len(self.decap))))
+
+
     def calc_z_fast(self, res_matrix=None):
         e = 8.85e-12
 
@@ -1299,7 +1734,8 @@ class PDN():
 
         top_port_num = [[-1] for i in np.ones((via_xy.shape[0]), dtype=int).tolist()]
         bot_port_num = [[-1] for i in np.ones((via_xy.shape[0]), dtype=int).tolist()]
-
+        # start_layer = np.zeros((via_xy.shape[0]), dtype=int)
+        # stop_layer = np.zeros((via_xy.shape[0]), dtype=int)
         top_port_grp = -1 * np.ones((via_xy.shape[0]), dtype=int)
         bot_port_grp = -1 * np.ones((via_xy.shape[0]), dtype=int)
 
@@ -1317,6 +1753,25 @@ class PDN():
                 print("[WARN] Provided top/bot_port_num length mismatch; falling back to heuristic.")
 
         ############################# nk #############################
+
+        # port_num = 0
+
+        # for i in range(0, via_loc.shape[0]):
+        #     if i < self.ic_via_xy.shape[0] - 1:
+        #         top_port_num[i] = [0]
+        #     elif i == self.ic_via_xy.shape[0] - 1:
+        #         port_num += 1
+        #         top_port_num[i] = [0]
+        #     elif via_loc[i] == 1 and via_type[i] == 1:
+        #         top_port_num[i] = [port_num]
+        #     elif via_loc[i] == 1 and via_type[i] == 0:
+        #         top_port_num[i] = [port_num]
+        #         port_num += 1
+        #     elif via_loc[i]== 0 and via_type[i] == 1:
+        #         bot_port_num[i] = [port_num]
+        #     elif via_loc[i] == 0 and via_type[i] == 0:
+        #         bot_port_num[i] = [port_num]
+        #         port_num += 1
 
         port_num = 1 
         pwr_count = 0
@@ -1610,3 +2065,42 @@ class PDN():
             t3 = time.time()
 
             return z
+
+    def connect_n_decap(self, input_z, map2orig_input, connect_port_list, decap_num_list):
+
+        if len(connect_port_list) > 0:
+            output_z = deepcopy(input_z)
+            map2orig_output = list(range(0, output_z.shape[1]))
+            for x in range(0, len(connect_port_list)):
+                output_z, map2orig_output = connect_1decap(output_z, map2orig_output,
+                                                           connect_port=map2orig_output.index(connect_port_list[x]),
+                                                           decap_z11=self.decap_list[decap_num_list[x]])
+            map2orig_output = [map2orig_input[i] for i in map2orig_output]
+        else:
+            output_z = deepcopy(input_z)
+            map2orig_output = deepcopy(map2orig_input)
+        return output_z, map2orig_output
+
+    def save2s(self, z, filename, path, z0=50):
+        if not os.path.exists(path):
+            os.makedirs(path)
+        brd = rf.Network()
+        brd.z0 = z0
+        brd.frequency = self.freq
+        brd.s = rf.network.z2s(z)
+        brd.write_touchstone(path + filename + ".s" + str(z.shape[1]) + "p")
+
+    def plot_z(self, z, port1=0, port2=0):
+        plt.loglog(self.freq.f / 1e6, np.abs(z[:, port1, port2]))
+        plt.grid(which='both')
+        plt.xlabel('Frequency(MHz)')
+        plt.ylabel('Impedance(Ohm)')
+        plt.show()
+
+    def short_1port_z(self, z, map2orig_input, shorted_port):
+        output_net = deepcopy(z)
+        output_net = np.linalg.inv(np.delete(np.delete(np.linalg.inv(output_net), shorted_port, axis=1),
+                                             shorted_port, axis=2))
+        map2orig_output = deepcopy(map2orig_input)
+        del map2orig_output[shorted_port]
+        return output_net, map2orig_output

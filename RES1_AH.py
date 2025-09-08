@@ -1,5 +1,5 @@
 import numpy as np
-from math import sqrt, pi, sin, cos, log, atan
+from math import sqrt, pi, sin, cos, log
 from copy import deepcopy
 import time
 
