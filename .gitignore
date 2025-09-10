@@ -1,0 +1,10 @@
+# Ignore the .vscode directory
+.vscode/
+
+# Ignore Python cache files
+__pycache__/
+
+# You can also ignore other files you might not want to upload, like:
+# Temporary files or large data files
+*.log
+*.zip

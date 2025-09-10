@@ -412,8 +412,6 @@ def org_resistance(stackup, via_type, start_layer, stop_layer, via_xy, decap_via
     return branch
 
 
-
-
 def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, decap_via_xy, decap_via_loc, ic_via_xy, ic_via_type, ic_via_loc):
     import numpy as np
     from copy import deepcopy

@@ -1258,355 +1258,306 @@ class PDN():
         #self.C_pul = self.er * e * self.area / 1
         self.C_pul = np.array([er * e * area / 1 for er, area in zip(self.er_list, self.area)])        
 
-    def calc_z_fast(self, res_matrix=None):
+    def calc_z_fast(self, res_matrix=None, verbose: bool = False):
         e = 8.85e-12
 
+        # ---- Via lists (IC + DECAP + optional BURIED) ----
         if hasattr(self, 'buried_via_xy') and self.buried_via_xy is not None and len(self.buried_via_xy) > 0:
             via_xy   = np.concatenate((self.ic_via_xy, self.decap_via_xy, self.buried_via_xy), axis=0)
             via_type = np.concatenate((self.ic_via_type, self.decap_via_type, self.buried_via_type), axis=0)
-            via_loc  = np.concatenate((self.ic_via_loc, self.decap_via_loc), axis=0)
+            via_loc  = np.concatenate((self.ic_via_loc,  self.decap_via_loc),  axis=0)
         else:
             via_xy   = np.concatenate((self.ic_via_xy, self.decap_via_xy), axis=0)
             via_type = np.concatenate((self.ic_via_type, self.decap_via_type), axis=0)
-            via_loc  = np.concatenate((self.ic_via_loc, self.decap_via_loc), axis=0)
+            via_loc  = np.concatenate((self.ic_via_loc,  self.decap_via_loc),  axis=0)
 
-        via_r = deepcopy(self.via_r)
+        via_r   = deepcopy(self.via_r)
         stackup = deepcopy(self.stackup)
-        sxy = deepcopy(self.sxy)
-        die_t = deepcopy(self.die_t) 
+        sxy     = deepcopy(self.sxy)
+        die_t   = deepcopy(self.die_t)
 
-
+        # ---- Board area / per-cavity area ----
         def get_overlap_area(shape1, shape2):
             poly1 = Polygon(shape1)
             poly2 = Polygon(shape2)
             inter = poly1.intersection(poly2)
             return inter.area if not inter.is_empty else 0.0
 
-        # Compute the top 5 overlapping areas
         if len(self.sxy_list) == 1:
-            # [1] Single-shape case: apply the same shape to all cavities
+            # Single-shape: the same cross-section for all cavities
             common_area = PolyArea(self.sxy_list[0][:, 0], self.sxy_list[0][:, 1])
             self.area = np.full(len(die_t), common_area)
-
         else:
+            # Pairwise overlap of consecutive shapes
             self.area = [
-                get_overlap_area(self.bxy[i], self.bxy[i+1])
+                get_overlap_area(self.bxy[i], self.bxy[i + 1])
                 for i in range(len(self.bxy) - 1)
             ]
 
-        self.C_pul = np.array([er * e * area for er, area in zip(self.er_list, self.area)])       
+        self.C_pul = np.array([er * e * area for er, area in zip(self.er_list, self.area)])
         C_pul = deepcopy(self.C_pul)
 
-        top_port_num = [[-1] for i in np.ones((via_xy.shape[0]), dtype=int).tolist()]
-        bot_port_num = [[-1] for i in np.ones((via_xy.shape[0]), dtype=int).tolist()]
+        # ---- Port mapping containers (top/bottom) ----
+        top_port_num = [[-1] for _ in range(via_xy.shape[0])]
+        bot_port_num = [[-1] for _ in range(via_xy.shape[0])]
 
         top_port_grp = -1 * np.ones((via_xy.shape[0]), dtype=int)
         bot_port_grp = -1 * np.ones((via_xy.shape[0]), dtype=int)
 
         ############################ nk ############################
-        # >>> NEW: if main.py gave us explicit port maps, use them and skip the heuristic
+        # If main.py (SPD path) provided explicit per-via port maps, use them and skip heuristic
         if hasattr(self, "top_port_num") and hasattr(self, "bot_port_num"):
             tpn = self.top_port_num.tolist() if isinstance(self.top_port_num, np.ndarray) else list(self.top_port_num)
             bpn = self.bot_port_num.tolist() if isinstance(self.bot_port_num, np.ndarray) else list(self.bot_port_num)
             if len(tpn) == via_xy.shape[0] and len(bpn) == via_xy.shape[0]:
                 top_port_num = tpn
                 bot_port_num = bpn
-                # (optional) anchor IC PWR group as port group 0 if you want:
-                # top_port_grp[np.where(self.ic_via_type == 1)[0]] = 0
-            else:
+            elif verbose:
                 print("[WARN] Provided top/bot_port_num length mismatch; falling back to heuristic.")
+        ############################ nk ############################
 
-        ############################# nk #############################
+        # ---- Heuristic mapping (only used if explicit maps are unusable) ----
+        port_num = 1
+        pwr_count = gnd_count = 0
 
-        port_num = 1 
-        pwr_count = 0
-        gnd_count = 0
-
+        # Top cavity
         for i in range(via_loc.shape[0]):
-            # IC via
-            if i < self.ic_via_xy.shape[0]:
+            if i < self.ic_via_xy.shape[0]:  # IC via → port 0
                 top_port_num[i] = [0]
-
-            # Top decap via
-            elif via_loc[i] == 1:
-                if via_type[i] == 1:  # Power
-                    top_port_num[i] = [port_num]
+                continue
+            if via_loc[i] == 1:
+                top_port_num[i] = [port_num]
+                if via_type[i] == 1:
                     pwr_count += 1
-                elif via_type[i] == 0:  # Ground
-                    top_port_num[i] = [port_num]
+                else:
                     gnd_count += 1
-
                 if pwr_count == gnd_count and pwr_count > 0:
                     port_num += 1
-                    pwr_count = 0
-                    gnd_count = 0
+                    pwr_count = gnd_count = 0
 
-        # --- Bottom ---
-        pwr_count = 0
-        gnd_count = 0
+        # Bottom cavity
+        pwr_count = gnd_count = 0
         for i in range(via_loc.shape[0]):
             if via_loc[i] == 0:
+                bot_port_num[i] = [port_num]
                 if via_type[i] == 1:
-                    bot_port_num[i] = [port_num]
                     pwr_count += 1
-                elif via_type[i] == 0:
-                    bot_port_num[i] = [port_num]
+                else:
                     gnd_count += 1
-
                 if pwr_count == gnd_count and pwr_count > 0:
                     port_num += 1
-                    pwr_count = 0
-                    gnd_count = 0
+                    pwr_count = gnd_count = 0
 
+        # Anchor IC PWR group on top, if desired
         top_port_grp[np.where(self.ic_via_type == 1)[0]] = 0
-        sxy = np.concatenate(deepcopy(self.sxy_list), axis=0)
+
+        # ---- Inductance per unit length via BEM ----
+        sxy   = np.concatenate(deepcopy(self.sxy_list), axis=0)
         via_r = deepcopy(self.via_r)
         L_pul = calc_lpul_bem(via_xy, via_r, sxy)
-        
 
-        branch, layer_com_node, port_node, port_grp_node_num, branch_merge_list = \
-            org_merge_pdn(stackup, via_type, self.start_layers, self.stop_layers,
-                          top_port_num, bot_port_num, top_port_grp, bot_port_grp)
+        # ---- Merge PDN graph (branches/ports/groups from layer start/stop) ----
+        branch, layer_com_node, port_node, port_grp_node_num, branch_merge_list = org_merge_pdn(
+            stackup, via_type, self.start_layers, self.stop_layers,
+            top_port_num, bot_port_num, top_port_grp, bot_port_grp
+        )
 
+        # ---- Assemble L for each cavity ----
         L_big = np.zeros((branch.shape[0], branch.shape[0]))
 
         if len(self.sxy_list) == 1:
-            for c in range(0, stackup.shape[0] - 1):
-                idx = np.where(branch[:, 3] == c)[0]
-                L_big[np.ix_(branch[idx, 0].astype(int), branch[idx, 0].astype(int))] = \
-                    die_t[c] * L_pul[np.ix_(branch[idx, 4].astype(int), branch[idx, 4].astype(int))]
-        else:
-
             for c in range(stackup.shape[0] - 1):
-                sxy_c = self.sxy_list[c]
+                idx = np.where(branch[:, 3] == c)[0]
+                bi  = branch[idx, 0].astype(int)
+                vi  = branch[idx, 4].astype(int)
+                L_big[np.ix_(bi, bi)] = die_t[c] * L_pul[np.ix_(vi, vi)]
+        else:
+            for c in range(stackup.shape[0] - 1):
+                sxy_c   = self.sxy_list[c]
+                idx_c   = np.where(branch[:, 3] == c)[0]
+                bi      = branch[idx_c, 0].astype(int)
+                vi      = branch[idx_c, 4].astype(int)
+                L_pul_c = calc_lpul_bem(via_xy[vi], via_r, sxy_c)  # only vias in this cavity
+                local   = np.arange(len(vi))
+                L_big[np.ix_(bi, bi)] = die_t[c] * L_pul_c[np.ix_(local, local)]
 
-                idx_c = np.where(branch[:, 3] == c)[0]
-                branch_idx = branch[idx_c, 0].astype(int)
-                via_idx = branch[idx_c, 4].astype(int)
+        branch_merge_list = []  # (kept, but empty per your code)
 
-
-                # Use only VIAs in this cavity for calculation
-                L_pul_c = calc_lpul_bem(via_xy[via_idx], via_r, sxy_c)
-
-
-                # Use local index for indexing
-                local_idx = np.arange(len(via_idx))
-                L_big[np.ix_(branch_idx, branch_idx)] = die_t[c] * L_pul_c[np.ix_(local_idx, local_idx)]
-
-        branch_merge_list=[]
-
-
-        L_new_inv, old_branch_nodes, new_branch_nodes, new_old_node_map = merge_L_big(L_big, branch_merge_list, branch)
+        # ---- Merge L and build incidence ----
+        L_new_inv, old_branch_nodes, new_branch_nodes, new_old_node_map = merge_L_big(
+            L_big, branch_merge_list, branch
+        )
 
         freq = self.freq.f
-
         new_branch_nodes_w_c = deepcopy(new_branch_nodes)
 
         new_branch_n = new_branch_nodes.shape[0]
-        new_node_n = new_old_node_map.shape[0]
+        new_node_n   = new_old_node_map.shape[0]
 
-        for c in range(0, die_t.shape[0]):
+        # Add inter-layer capacitor branches (one per cavity)
+        for c in range(die_t.shape[0]):
             if layer_com_node[c] == -1 and layer_com_node[c + 1] == -1:
-                new_branch_nodes_w_c = np.append(new_branch_nodes_w_c, [[new_branch_n, new_node_n, new_node_n + 1]],
-                                                 axis=0)
-                new_node_n += 2
+                new_branch_nodes_w_c = np.append(
+                    new_branch_nodes_w_c,
+                    [[new_branch_n, new_node_n, new_node_n + 1]],
+                    axis=0
+                )
+                new_node_n  += 2
                 new_branch_n += 1
             elif layer_com_node[c] != -1 and layer_com_node[c + 1] == -1:
-                new_branch_nodes_w_c = np.append(new_branch_nodes_w_c,
-                                                 [[new_branch_n, new_old_node_map[
-                                                     np.where(new_old_node_map[:, 1] == layer_com_node[c])[0][0], 0],
-                                                   new_node_n]],
-                                                 axis=0)
-                new_node_n += 1
+                n1 = new_old_node_map[np.where(new_old_node_map[:, 1] == layer_com_node[c])[0][0], 0]
+                new_branch_nodes_w_c = np.append(
+                    new_branch_nodes_w_c,
+                    [[new_branch_n, n1, new_node_n]],
+                    axis=0
+                )
+                new_node_n  += 1
                 new_branch_n += 1
             elif layer_com_node[c] == -1 and layer_com_node[c + 1] != -1:
-                new_branch_nodes_w_c = np.append(new_branch_nodes_w_c,
-                                                 [[new_branch_n, new_node_n, new_old_node_map[
-                                                     np.where(new_old_node_map[:, 1] == layer_com_node[c + 1])[0][
-                                                         0], 0]]],
-                                                 axis=0)
-                new_node_n += 1
+                n2 = new_old_node_map[np.where(new_old_node_map[:, 1] == layer_com_node[c + 1])[0][0], 0]
+                new_branch_nodes_w_c = np.append(
+                    new_branch_nodes_w_c,
+                    [[new_branch_n, new_node_n, n2]],
+                    axis=0
+                )
+                new_node_n  += 1
                 new_branch_n += 1
             else:
-                new_branch_nodes_w_c = np.append(new_branch_nodes_w_c,
-                                                 [[new_branch_n, new_old_node_map[
-                                                     np.where(new_old_node_map[:, 1] == layer_com_node[c])[0][0], 0],
-                                                   new_old_node_map[
-                                                       np.where(new_old_node_map[:, 1] == layer_com_node[c + 1])[0][
-                                                           0], 0]]],
-                                                 axis=0)
+                n1 = new_old_node_map[np.where(new_old_node_map[:, 1] == layer_com_node[c])[0][0], 0]
+                n2 = new_old_node_map[np.where(new_old_node_map[:, 1] == layer_com_node[c + 1])[0][0], 0]
+                new_branch_nodes_w_c = np.append(
+                    new_branch_nodes_w_c,
+                    [[new_branch_n, n1, n2]],
+                    axis=0
+                )
                 new_branch_n += 1
 
-
-
+        # ---- Build branch admittance matrix Yb ----
         Yb = np.zeros((freq.shape[0], new_branch_n, new_branch_n), dtype=complex)
 
-        # add the inductance matrix inverse into the Yb matrix
-        Yb[:, 0:L_new_inv.shape[0], 0:L_new_inv.shape[0]] = 1 / (1j * 2 * pi) * np.einsum('i,jk->ijk', 1 / freq,
-                                                                                          L_new_inv)
-      
+        # Inductive branches (inverse L)
+        Yb[:, 0:L_new_inv.shape[0], 0:L_new_inv.shape[0]] = (
+            1 / (1j * 2 * np.pi) * np.einsum('i,jk->ijk', 1 / freq, L_new_inv)
+        )
 
-        for c in range(0, die_t.shape[0]):
+        # Capacitive (cavity) branches on the diagonal
+        min_len = min(len(self.area), len(self.er_list), len(die_t))
+        for c in range(min_len):
+            area_c = float(self.area[c])
+            er_c   = float(self.er_list[c])
+            d_c    = float(die_t[c])
+            term   = 1j * 2 * np.pi * freq * er_c * e * area_c / d_c  # (nf,)
+            Yb[:, L_new_inv.shape[0] + c, L_new_inv.shape[0] + c] = term
 
-            # Loop only up to the shortest length among the three parameters
-            min_len = min(len(self.area), len(self.er_list), len(die_t))
-
-            for c in range(min_len):
-                area_c = float(self.area[c])
-                er_c = float(self.er_list[c])
-                d_c = float(die_t[c])
-
-                term = 1j * 2 * np.pi * freq * er_c * e * area_c / d_c  # shape = (201,)
-
-                # Save Yb for each frequency individually
-                Yb[:, L_new_inv.shape[0] + c, L_new_inv.shape[0] + c] = term
-
-        # Fill the reduced incidence matrix A
+        # ---- Reduced incidence (A) and node admittance (Yn) ----
         A = np.zeros((freq.shape[0], new_node_n, new_branch_n))  # reduced incidence matrix
-
-        for b in range(0, new_branch_n):
-            A[:, int(new_branch_nodes_w_c[b, 1]), b] = 1
+        for b in range(new_branch_n):
+            A[:, int(new_branch_nodes_w_c[b, 1]), b] =  1
             A[:, int(new_branch_nodes_w_c[b, 2]), b] = -1
 
         Yn = np.einsum('rmn,rnk->rmk', np.einsum('rmn,rnk->rmk', A, Yb), np.transpose(A, (0, 2, 1)))
-        
 
+        # ----------------------------------------------------------------------
+        # ########################## debug nk ##########################
+        if verbose:
+            # 1) Which layers are "anchored"?
+            print("[DBG] layer_com_node:", layer_com_node.tolist())
+            # -1 means: no via terminating on that layer for the relevant net
 
+            # 2) Which extra branches are the inter-layer capacitors attached to?
+            cap_branch_rows = list(range(L_new_inv.shape[0], new_branch_n))
+            caps_triplets = new_branch_nodes_w_c[cap_branch_rows, :].astype(int).tolist()
+            print("[DBG] cap branches (branch_id, node1, node2):", caps_triplets)
 
-        map2old_node = new_old_node_map[:, 1].astype(int).tolist()
+            # 3) Old->new node map (the nodes present in the reduced system)
+            map2old_node = new_old_node_map[:, 1].astype(int).tolist()
+            print("[DBG] map2old_node:", map2old_node)
 
-        ########################## debug nk ##########################
+            # 4) Port mapping sanity
+            print("[DBG] port_node (+, -) per port:\n", port_node.astype(int))
+            invalid_ports = np.where((port_node[:, 0] < 0) | (port_node[:, 1] < 0))[0]
+            if invalid_ports.size:
+                print("[ERR] Ports with invalid +/- node indices:", invalid_ports.tolist())
 
-        # # 1) Which layers are "anchored"?
-        # print("[DBG] layer_com_node:", layer_com_node.tolist())
-        # # Values of -1 mean: solver found no via terminating on that layer for the relevant net.
+            # 5) Degenerate branches (node1 == node2)
+            bad_branches = np.where(new_branch_nodes_w_c[:, 1] == new_branch_nodes_w_c[:, 2])[0]
+            if bad_branches.size:
+                print("[WARN] Branches with identical endpoints:", bad_branches.astype(int).tolist())
 
-        # # 2) Which extra branches are the inter-layer capacitors attached to?
-        # # (Each cavity adds one branch; both endpoints should map to existing nodes)
-        # cap_branch_rows = list(range(L_new_inv.shape[0], new_branch_n))
-        # print("[DBG] cap branches (branch_id, node1, node2):",
-        #     new_branch_nodes_w_c[cap_branch_rows, :].astype(int).tolist())
+            # 6) Connectivity from reference (will set below, but we can preview using first port's ground)
+            ref_node_dbg = int(port_node[0, 1])
+            if ref_node_dbg in map2old_node:
+                ref_idx = map2old_node.index(ref_node_dbg)
+                Nn = int(A.shape[1])
+                adj = np.zeros((Nn, Nn), dtype=bool)
+                for bb in range(int(new_branch_nodes_w_c.shape[0])):
+                    n1 = int(new_branch_nodes_w_c[bb, 1])
+                    n2 = int(new_branch_nodes_w_c[bb, 2])
+                    if n1 != n2:
+                        adj[n1, n2] = True
+                        adj[n2, n1] = True
+                seen = np.zeros(Nn, dtype=bool)
+                stack = [ref_idx]
+                while stack:
+                    v = stack.pop()
+                    if seen[v]: 
+                        continue
+                    seen[v] = True
+                    for u in np.where(adj[v])[0]:
+                        if not seen[u]:
+                            stack.append(u)
+                disconnected = np.where(~seen)[0]
+                if disconnected.size:
+                    print("[ERR] Disconnected nodes (not reachable from reference):", disconnected.astype(int).tolist())
+            else:
+                print("[ERR] ref_node not found in map2old_node. ref_node=", ref_node_dbg, "map:", map2old_node)
 
-        # # 3) Show the map (old->new) of node IDs the solver knows about
-        # print("[DBG] map2old_node:", map2old_node)  # list of old node indices present in the reduced system
-        
+            # 7) Optional rank check at a few frequencies
+            def _rank(M):
+                s = np.linalg.svd(M, compute_uv=False)
+                return int((s > 1e-12).sum())
+            for fi in (0, len(freq)//2, len(freq)-1):
+                try:
+                    r = _rank(Yn[fi])
+                    print(f"[DBG] rank(Yn[{fi}])={r} size={Yn.shape[1]}")
+                except Exception as _:
+                    pass
 
-        # # --- After A, Yn are formed, before choosing ref_node ---
-        # # 0) Sanity: print the port mapping you’re about to rely on
-        # print("[DBG] port_node (+, -) per port:\n", port_node.astype(int))
-
-        # # 1) Check for any invalid port mappings
-        # invalid_ports = np.where((port_node[:,0] < 0) | (port_node[:,1] < 0))[0]
-        # if invalid_ports.size:
-        #     print("[ERR] Ports with invalid +/- node indices:", invalid_ports)
-        #     # This is a parsing/mapping problem – fix parser or skip these ports.
-
-        # # 2) Degenerate branches where node1 == node2
-        # bad_branches = np.where(new_branch_nodes_w_c[:,1] == new_branch_nodes_w_c[:,2])[0]
-        # if bad_branches.size:
-        #     print("[WARN] Branches with identical endpoints:", bad_branches.tolist())
-        #     # You can drop them from A/Yb (see fix section).
-
-        # # 3) Connectivity: find nodes not connected to the chosen reference
-        # map2old_node = new_old_node_map[:, 1].astype(int).tolist()
-        # ref_node = int(port_node[0, 1])     # gnd of first port
-        # if ref_node in map2old_node:
-        #     ref_idx = map2old_node.index(ref_node)
-        # else:
-        #     print("[ERR] ref_node not found in map2old_node. ref_node=", ref_node, "map:", map2old_node)
-
-        # # Build an undirected adjacency from branches
-        # Nn = int(A.shape[1])
-        # adj = np.zeros((Nn, Nn), dtype=bool)
-        # for b in range(int(new_branch_nodes_w_c.shape[0])):
-        #     n1 = int(new_branch_nodes_w_c[b,1]); n2 = int(new_branch_nodes_w_c[b,2])
-        #     if n1 != n2:
-        #         adj[n1,n2] = True; adj[n2,n1] = True
-
-        # # BFS/DFS from ref_idx
-        # seen = np.zeros(Nn, dtype=bool)
-        # stack = [ref_idx]
-        # while stack:
-        #     v = stack.pop()
-        #     if seen[v]: continue
-        #     seen[v] = True
-        #     nxt = np.where(adj[v])[0]
-        #     for u in nxt:
-        #         if not seen[u]: stack.append(u)
-
-        # disconnected = np.where(~seen)[0]
-        # if disconnected.size:
-        #     print("[ERR] Disconnected nodes (not reachable from reference):", disconnected.tolist())
-        #     # These nodes belong to floating islands; Yn will be singular after single reference removal.
-
-        # # 4) Rank check per frequency (optional but surgical)
-        # import numpy as _np
-        # def _rank(M): 
-        #     # cheap rank estimator
-        #     u,s,vt = _np.linalg.svd(M, full_matrices=False)
-        #     return (s > 1e-12).sum()
-        # for fi in (0, len(self.freq.f)//2, len(self.freq.f)-1):
-        #     r = _rank(Yn[fi])
-        #     print(f"[DBG] rank(Yn[{fi}])={r} size={Yn.shape[1]}")
-
-
-        # #0) Immediate neighbors of the “bad” nodes
-        # for bad in [11, 12]:
-        #     neigh = np.where(adj[bad])[0].tolist()
-        #     print(f"[DBG] neighbors(node {bad}) =", neigh)
-        #     attached = np.where((new_branch_nodes_w_c[:,1]==bad) | (new_branch_nodes_w_c[:,2]==bad))[0]
-        #     print(f"[DBG] branches touching {bad}:", attached.tolist())
-        #     for b in attached:
-        #         n1 = int(new_branch_nodes_w_c[b,1]); n2 = int(new_branch_nodes_w_c[b,2])
-        #         kind = "cap" if b >= L_new_inv.shape[0] else "cond"
-        #         print(f"    branch {b}: {n1}<->{n2} ({kind})")
-
-        # # 1) Per-via table (what the solver *thinks* each via is)
-        # for i in range(len(self.start_layers)):
-        #     print(f"[VIA {i}] type={via_type[i]} start={self.start_layers[i]} stop={self.stop_layers[i]} xy={via_xy[i]}")
-    
+            # 8) Per-via table
+            for i_v in range(len(self.start_layers)):
+                print(f"[VIA {i_v}] type={via_type[i_v]} start={self.start_layers[i_v]} stop={self.stop_layers[i_v]} xy={via_xy[i_v]}")
         # ########################## end debug nk ##########################
-        
+        # ----------------------------------------------------------------------
 
-        # choose a reference node: the gnd node of the first port
-        ref_node = port_node[0, 1] 
+        # ---- Choose reference node: ground of first port ----
+        map2old_node = new_old_node_map[:, 1].astype(int).tolist()
+        ref_node = int(port_node[0, 1])
 
-
-        Yn_reduce = np.delete(np.delete(Yn, [map2old_node.index(ref_node)], axis=2),
-                              [map2old_node.index(ref_node)], axis=1)
+        Yn_reduce = np.delete(
+            np.delete(Yn, [map2old_node.index(ref_node)], axis=2),
+            [map2old_node.index(ref_node)], axis=1
+        )
         del map2old_node[map2old_node.index(ref_node)]
 
-        ztot = np.linalg.inv(Yn_reduce)  # z parameter including all nodes
+        # ---- Z of reduced network ----
+        ztot = np.linalg.inv(Yn_reduce)
 
-        # obtain the final Z matrix corresponding to the ports defined by users
-
-
-
-        for n in range(0, port_node.shape[0]):
+        # Shift to port voltages (V+ - V- for each port)
+        for n in range(port_node.shape[0]):
             if port_node[n, 1] != ref_node:
                 ztot[:, map2old_node.index(port_node[n, 0]), :] -= ztot[:, map2old_node.index(port_node[n, 1]), :]
                 ztot[:, :, map2old_node.index(port_node[n, 0])] -= ztot[:, :, map2old_node.index(port_node[n, 1])]
 
-        z = ztot[np.ix_(list(range(0, ztot.shape[0])), find_index(map2old_node, port_node[:, 0].tolist()),
-                        find_index(map2old_node, port_node[:, 0].tolist()))]
+        port_idx = find_index(map2old_node, port_node[:, 0].tolist())
+        z = ztot[np.ix_(list(range(ztot.shape[0])), port_idx, port_idx)]
 
-        # Resistance part
-        z = ztot[np.ix_(
-            list(range(0, ztot.shape[0])),
-            find_index(map2old_node, port_node[:, 0].tolist()),
-            find_index(map2old_node, port_node[:, 0].tolist()))
-        ]
-
+        # ---- Add port series resistance (optional) ----
         if res_matrix is not None:
-            port_idx = find_index(map2old_node, port_node[:, 0].tolist())
             n_ports = len(port_idx)
             if np.isscalar(res_matrix):
-                res_matrix_ports = np.eye(n_ports) * res_matrix
+                res_matrix_ports = np.eye(n_ports) * float(res_matrix)
             else:
                 res_matrix_ports = res_matrix[np.ix_(port_idx, port_idx)]
+            z += res_matrix_ports[None, :, :]
 
-            res_matrix_ports = res_matrix_ports[None, :, :]  # shape: (1, N, N)
-            z += res_matrix_ports
-            t3 = time.time()
-
-            return z
+        return z

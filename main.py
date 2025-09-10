@@ -5,18 +5,13 @@ import pathlib
 
 from copy import deepcopy
 from code_pdn_AH import PDN
-from RES1_AH import main_res
 import time
 import os
 import skrf as rf
 from input_AH import input_path, stackup_path, layer_type_path, touchstone_path
 
 from pdn_io.spd_parser import parse_spd
-from pdn_io.stackup_parser import (
-    read_stackup,
-    read_layer_type,
-    build_stackup_mask,
-)
+from pdn_io.stackup_parser import (read_stackup, read_layer_type, build_stackup_mask)
 
 class Board:
     def __init__(self):
@@ -26,33 +21,8 @@ class Board:
         self.decap_via_xy = np.array([])
         self.decap_via_type = np.array([])
         self.ic_via_loc = np.array([])        
-        self.decap_via_loc = np.array([])
+        self.decap_via_loc = np.array([])   
 
-def set_ic_via_loc_per_via(brd, start_layers, stop_layers):
-    # Set via start and stop layers individually for each IC via.
-
-    # Ensure inputs are 1D numpy arrays of correct shape
-    start_layers = np.asarray(start_layers).flatten()
-    stop_layers = np.asarray(stop_layers).flatten()
-   
-    n_vias = brd.ic_via_xy.shape[0]
-
-    if start_layers.shape[0] != n_vias or stop_layers.shape[0] != n_vias:
-        raise ValueError(f"start_layers and stop_layers must each have {n_vias} elements, "
-                         f"but got {start_layers.shape[0]} and {stop_layers.shape[0]}.")
-
-    # Adjust for 0-based indexing
-    start_layers -= 1
-    stop_layers  -= 1
-
-   
-def handle_gen_brd_data_output(result):
-    if len(result) == 10:
-        return result + (None, None)
-    elif len(result) == 12:
-        return result
-    else:
-        raise ValueError(f"Unexpected number of return values from gen_brd_data: {len(result)}")
 
 def gen_brd_data(
     brd,
@@ -105,10 +75,6 @@ def gen_brd_data(
     stop_layers  = np.array(stop_layers).tolist()
     brd.start_layers = start_layers
     brd.stop_layers  = stop_layers
-
-    # Optional: keep per-IC via cavity assignment using start/stop if you rely on it downstream
-    n_ic = brd.ic_via_xy.shape[0]
-    set_ic_via_loc_per_via(brd, start_layers[:n_ic], stop_layers[:n_ic])
 
     brd.via_type       = np.array(via_type, dtype=int)
     brd.decap_via_xy   = np.round(np.array(decap_via_xy), SNAP_DECIMALS)
@@ -163,22 +129,8 @@ def gen_brd_data(
     brd.die_t = die_t
     brd.d_r = d_r
 
-    # --- 6) Resistance & Z computation (unchanged) ---
-    res_matrix = main_res(
-        brd=brd,
-        die_t=die_t,
-        d=d_r,
-        stackup=brd.stackup,
-        start_layer=brd.start_layers,
-        stop_layer=brd.stop_layers,
-        decap_via_type=brd.decap_via_type,
-        decap_via_xy=brd.decap_via_xy,
-        decap_via_loc=brd.decap_via_loc,
-        ic_via_xy=brd.ic_via_xy,
-        ic_via_loc=brd.ic_via_loc,
-        ic_via_type=brd.ic_via_type,
-    )
-    z = brd.calc_z_fast(res_matrix=res_matrix)
+    # --- 6) Z computation (unchanged) ---
+    z = brd.calc_z_fast(res_matrix=None, verbose=True)
 
     brd.buried_via_xy   = brd.buried_via_xy   if hasattr(brd, "buried_via_xy")   else None
     brd.buried_via_type = brd.buried_via_type if hasattr(brd, "buried_via_type") else None
@@ -195,11 +147,17 @@ def gen_brd_data(
         die_t,
         brd.sxy_list,
     ]
+
     if brd.buried_via_xy is not None and brd.buried_via_type is not None:
         result_out.append(brd.buried_via_xy)
         result_out.append(brd.buried_via_type)
 
-    return tuple(result_out)
+    if len(result_out) == 10:
+        return tuple(result_out) + (None, None)
+    elif len(result_out) == 12:
+        return tuple(result_out)
+    else:
+        raise ValueError(f"Unexpected number of return values from gen_brd_data: {len(result)}")
 
 
 def compare_touchstone_with_python_z(touchstone_path, python_z, freq):
@@ -230,18 +188,6 @@ def compare_touchstone_with_python_z(touchstone_path, python_z, freq):
         print(f"[ERROR] Failed to compare Touchstone and Python Z: {e}")
 
 
-def connect_z_short(z1, shorted_port):
-    a_ports = list(range(z1.shape[1]))
-
-    del a_ports[shorted_port]
-    p_ports = [shorted_port]
-    Zaa = z1[np.ix_(a_ports, a_ports)]
-    Zpp = z1[np.ix_(p_ports, p_ports)]
-    Zap = z1[np.ix_(a_ports, p_ports)]
-    Zpa = z1[np.ix_(p_ports, a_ports)]
-    z_connect = Zaa - np.matmul(np.matmul(Zap,np.linalg.inv(Zpp)),Zpa)
-    return z_connect
-
 def short_1port_z( z, map2orig_input, shorted_port):
         output_net = deepcopy(z)
         output_net = np.linalg.inv(np.delete(np.delete(np.linalg.inv(output_net), shorted_port, axis=1),                      
@@ -263,11 +209,8 @@ network = rf.Network(touchstone_path)
 z_tool_full = network.z
 freqs = network.f  
 
-
 shorted_port_index = 0        
 z_tool_shorted = np.array([short_1port_toolz(z, shorted_port_index) for z in z_tool_full])  
-
-z22_tool = np.abs(z_tool_shorted[:, 0, 0])  # Z22 after IC port is shorted
 
 def compare_shorted_z(touchstone_path, python_z, freq, ic_port_idx):
     try:
@@ -326,51 +269,50 @@ if __name__ == '__main__':
 
     brd = PDN()
 
-    for i in range(N):
 
-        result = gen_brd_data(
-            brd=brd,
-            spd_path=input_path,                  # e.g., "b4_1.spd"
-            stackup_path=stackup_path,  # e.g., "b4_1_stackup.csv"
-            layer_type_path=layer_type_path,  # e.g., "b4_1_layer_type.csv"
-        )
+    result = gen_brd_data(
+        brd=brd,
+        spd_path=input_path,                  # e.g., "b4_1.spd"
+        stackup_path=stackup_path,  # e.g., "b4_1_stackup.csv"
+        layer_type_path=layer_type_path,  # e.g., "b4_1_layer_type.csv"
+    )
 
 
-        z, bxy, ic_via_xy, ic_via_type, decap_via_xy, decap_via_type, \
-        decap_via_loc, stackup, die_t, sxy_list, buried_via_xy, buried_via_type = handle_gen_brd_data_output(result)
+    z, bxy, ic_via_xy, ic_via_type, decap_via_xy, decap_via_type, \
+    decap_via_loc, stackup, die_t, sxy_list, buried_via_xy, buried_via_type = result
 
-        if np.isnan(np.sum(z)):
-            print("[Error] Z contains NaN values — skipping")
-            num_error += 1
-            continue
+    if np.isnan(np.sum(z)):
+        print("[Error] Z contains NaN values — skipping")
 
-        ic_port_index = detect_ic_port_index(touchstone_path)
+    ic_port_index = detect_ic_port_index(touchstone_path)
+    
+    board_num = "4.1"
+    board_name = f"board{board_num}"
+    
+    save2s(brd, z, board_name, BASE_PATH)
+    t0 = time.time()
 
-        board_name = f"board{i}"
-        save2s(brd, z, board_name, BASE_PATH)
-        t0 = time.time()
+    fstart = 10e3
+    fstop = 200e6
+    nf = 201
+    freq = np.logspace(np.log10(fstart), np.log10(fstop), nf)
+    Freq = rf.Frequency(start=fstart/1e6, stop=fstop/1e6, npoints=nf, unit='mhz', sweep_type='log')
+    
+    try:
+        net = rf.Network(touchstone_path).interpolate(Freq)
+        input_net = net.z
 
-        fstart = 10e3
-        fstop = 200e6
-        nf = 201
-        freq = np.logspace(np.log10(fstart), np.log10(fstop), nf)
-        Freq = rf.Frequency(start=fstart/1e6, stop=fstop/1e6, npoints=nf, unit='mhz', sweep_type='log')
-        
-        try:
-            net = rf.Network(touchstone_path).interpolate(Freq)
-            input_net = net.z
-
-            plt.figure()
-            plt.loglog(freq, np.abs(z[:, ic_port_index, ic_port_index]), label='Node Voltage Method Z')
-            plt.loglog(freq, np.abs(input_net[:, ic_port_index, ic_port_index]), '--', label='Power SI Z')
-            plt.xlabel('Frequency (Hz)')
-            plt.ylabel('|Z11| (Ohm)')
-            plt.legend()
-            plt.grid(True)
-            plt.title('Z_IC')
-            plt.tight_layout()
-            plt.show()
-        except Exception as e:
-            print(f"[ERROR] Touchstone failed: {e}")
+        plt.figure()
+        plt.loglog(freq, np.abs(z[:, ic_port_index, ic_port_index]), label='Node Voltage Method Z')
+        plt.loglog(freq, np.abs(input_net[:, ic_port_index, ic_port_index]), '--', label='Power SI Z')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('|Z11| (Ohm)')
+        plt.legend()
+        plt.grid(True)
+        plt.title('Z_IC')
+        plt.tight_layout()
+        plt.show()
+    except Exception as e:
+        print(f"[ERROR] Touchstone failed: {e}")
 
 
