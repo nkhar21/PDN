@@ -8,27 +8,16 @@ from code_pdn_AH import PDN
 import time
 import os
 import skrf as rf
-from input_AH import input_path, stackup_path, layer_type_path, touchstone_path
+from input_AH import input_path, stackup_path, touchstone_path # , layer_type_path
 
 from pdn_io.spd_parser import parse_spd
-from pdn_io.stackup_parser import (read_stackup, read_layer_type, build_stackup_mask)
-
-class Board:
-    def __init__(self):
-        self.bxy = np.array([])
-        self.ic_via_xy = np.array([])
-        self.ic_via_type = np.array([])
-        self.decap_via_xy = np.array([])
-        self.decap_via_type = np.array([])
-        self.ic_via_loc = np.array([])        
-        self.decap_via_loc = np.array([])   
-
-
+from pdn_io.stackup_parser import read_stackup
+ 
 def gen_brd_data(
     brd,
     spd_path: str,
     stackup_path: str,
-    layer_type_path: str,
+#    layer_type_path: str,
     d: float = 1e-3,
 ):
     """
@@ -37,16 +26,16 @@ def gen_brd_data(
     # --- 1) Parse SPD (board shapes, vias, layers, etc.) ---
     result = parse_spd(brd, spd_path, verbose=False)
 
-    # Safely unpack depending on the presence of buried vias
-    if len(result) == 8:
+    # Accept new 9/11 tuple (stackup included)
+    if len(result) == 9:
         (bxy, ic_via_xy, ic_via_type,
          start_layers, stop_layers, via_type,
-         decap_via_xy, decap_via_type) = result
+         decap_via_xy, decap_via_type, stackup) = result
         brd.buried_via_xy, brd.buried_via_type = None, None
-    elif len(result) == 10:
+    elif len(result) == 11:
         (bxy, ic_via_xy, ic_via_type,
          start_layers, stop_layers, via_type,
-         decap_via_xy, decap_via_type,
+         decap_via_xy, decap_via_type, stackup,
          buried_via_xy, buried_via_type) = result
         brd.buried_via_xy = buried_via_xy
         brd.buried_via_type = buried_via_type
@@ -66,70 +55,14 @@ def gen_brd_data(
         offset += n_seg
     brd.sxy_list = [brd.seg_bd_node(b, d) for b in brd.bxy]
 
-    # --- 3) Assign via arrays to brd (round, types, layers) ---
-    SNAP_DECIMALS = 7
-    brd.ic_via_xy   = np.round(np.array(ic_via_xy), SNAP_DECIMALS)
-    brd.ic_via_type = np.array(ic_via_type, dtype=int)
 
-    start_layers = np.array(start_layers).tolist()
-    stop_layers  = np.array(stop_layers).tolist()
-    brd.start_layers = start_layers
-    brd.stop_layers  = stop_layers
-
-    brd.via_type       = np.array(via_type, dtype=int)
-    brd.decap_via_xy   = np.round(np.array(decap_via_xy), SNAP_DECIMALS)
-    brd.decap_via_type = np.array(decap_via_type, dtype=int)
-
-    # --- 4) Guards against overlapping decap/IC vias (your existing fixes) ---
-    for i in range(len(brd.decap_via_xy)):
-        while any(np.allclose(brd.decap_via_xy[i], ic_xy, atol=1e-9) for ic_xy in brd.ic_via_xy):
-            brd.decap_via_xy[i][0] += 1e-7
-            brd.decap_via_xy[i][1] += 1e-7
-
-    # b4_1 fix: ensure decaps are unique per cavity & globally
-    seen = {0: set(), 1: set()}
-    for i in range(len(brd.decap_via_xy)):
-        l = int(brd.decap_via_loc[i])  # 1=top, 0=bottom
-        x, y = brd.decap_via_xy[i]
-        key = (round(x, 9), round(y, 9))
-        while key in seen[l] or any(np.allclose([x, y], ic_xy, atol=1e-9) for ic_xy in brd.ic_via_xy):
-            x += 1e-7; y += 1e-7
-            key = (round(x, 9), round(y, 9))
-        seen[l].add(key)
-        brd.decap_via_xy[i] = [x, y]
-
-    def _dedupe_global_vias(brd, eps=1e-7, rdec=9):
-        seen = set()
-        def proc(arr):
-            if arr is None or np.size(arr) == 0:
-                return
-            for i in range(len(arr)):
-                x, y = float(arr[i][0]), float(arr[i][1])
-                key = (round(x, rdec), round(y, rdec))
-                while key in seen:
-                    x += eps; y += eps
-                    key = (round(x, rdec), round(y, rdec))
-                seen.add(key)
-                arr[i] = [x, y]
-        if hasattr(brd, 'ic_via_xy') and brd.ic_via_xy.size:
-            proc(brd.ic_via_xy)
-        if hasattr(brd, 'decap_via_xy') and brd.decap_via_xy.size:
-            proc(brd.decap_via_xy)
-        if hasattr(brd, 'buried_via_xy') and brd.buried_via_xy is not None and brd.buried_via_xy.size:
-            proc(brd.buried_via_xy)
-    _dedupe_global_vias(brd)
-
-    # --- 5) Stackup & layer-type via external parsers ---
+    # --- 3) Stackup & layer-type via external parsers ---
     die_t, er_list, d_r = read_stackup(stackup_path)
-    layer_type_df = read_layer_type(layer_type_path)
-    stackup = build_stackup_mask(layer_type_df)
-
     brd.er_list = er_list
-    brd.stackup = stackup
     brd.die_t = die_t
     brd.d_r = d_r
 
-    # --- 6) Z computation (unchanged) ---
+    # --- 4) Z computation (unchanged) ---
     z = brd.calc_z_fast(res_matrix=None, verbose=True)
 
     brd.buried_via_xy   = brd.buried_via_xy   if hasattr(brd, "buried_via_xy")   else None
@@ -143,7 +76,7 @@ def gen_brd_data(
         brd.decap_via_xy,
         brd.decap_via_type,
         brd.decap_via_loc,
-        stackup,
+        brd.stackup,
         die_t,
         brd.sxy_list,
     ]
@@ -274,7 +207,7 @@ if __name__ == '__main__':
         brd=brd,
         spd_path=input_path,                  # e.g., "b4_1.spd"
         stackup_path=stackup_path,  # e.g., "b4_1_stackup.csv"
-        layer_type_path=layer_type_path,  # e.g., "b4_1_layer_type.csv"
+#        layer_type_path=layer_type_path,  # e.g., "b4_1_layer_type.csv"
     )
 
 

@@ -30,6 +30,7 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
           brd.ic_via_xy, brd.ic_via_type,
           brd.start_layers, brd.stop_layers, brd.via_type,
           brd.decap_via_xy, brd.decap_via_type,
+          stackup_mask,
           [optional] brd.buried_via_xy, brd.buried_via_type
         )
     """
@@ -60,13 +61,12 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
     log("Via lines extracted:\n", len(via_lines), "examples:\n", via_lines[:5])
 
     # 6) Start/stop/type arrays for ALL vias (IC+DECAP order as in Connect)
-    brd.start_layers, brd.stop_layers, brd.via_type = _extract_start_stop_type(
-        via_lines, node_info, ic_blocks, decap_blocks
-    )
-    # convert to 0-based layer indices
-    brd.start_layers = brd.start_layers - 1
-    brd.stop_layers  = brd.stop_layers  - 1
+    sl, tl, vt = _extract_start_stop_type(via_lines, node_info, ic_blocks, decap_blocks)
+    brd.start_layers = np.asarray(sl, np.int32) - 1
+    brd.stop_layers  = np.asarray(tl, np.int32) - 1
+    brd.via_type     = np.asarray(vt, np.int32)
     log("Start/stop/type arrays:\n", brd.start_layers, brd.stop_layers, brd.via_type)
+    
 
     # 7) Buried vias (optional)
     _fill_buried_vias(brd, via_lines, node_info)
@@ -82,12 +82,36 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
     log("IC via port/cavity maps:\n", getattr(brd, 'top_port_num', "N/A"))
     log("Decap via port/cavity maps:\n", getattr(brd, 'bot_port_num', "N/A"))
 
-    # 10) Build return tuple compatible with current main.py
+    # --- (3) Assign/snap/cast moved here ---
+    SNAP_DEC = 7
+    brd.ic_via_xy     = _snap(brd.ic_via_xy, SNAP_DEC)
+    brd.decap_via_xy  = _snap(brd.decap_via_xy, SNAP_DEC)
+    if getattr(brd, "buried_via_xy", None) is not None and np.size(brd.buried_via_xy):
+        brd.buried_via_xy = _snap(brd.buried_via_xy, SNAP_DEC)
+
+    brd.ic_via_type    = np.asarray(brd.ic_via_type,    np.int32)
+    brd.decap_via_type = np.asarray(brd.decap_via_type, np.int32)
+    if getattr(brd, "buried_via_type", None) is not None:
+        brd.buried_via_type = np.asarray(brd.buried_via_type, np.int32)
+
+    # --- (4) Global guards: IC vs Decap vs Buried de-duplication ---
+    pre_unique = len(_to_keys(brd.ic_via_xy) | _to_keys(brd.decap_via_xy) | _to_keys(getattr(brd,"buried_via_xy", None)))
+    _dedupe_across_groups(brd, eps=1e-7, rdec=9)
+    post_unique = len(_to_keys(brd.ic_via_xy) | _to_keys(brd.decap_via_xy) | _to_keys(getattr(brd,"buried_via_xy", None)))
+    if post_unique != pre_unique:
+        log(f"[SPD] Dedupe adjusted {pre_unique - post_unique} duplicate(s) (eps=1e-7 m)")
+
+    # 10) Infer stackup mask (0=GND-return layer, 1=PWR layer)
+    brd.stackup = _infer_stackup_mask(text, node_info=node_info)
+    log(f"[SPD] Stackup mask: len={len(brd.stackup)}  PWR={int(np.sum(brd.stackup))}  GND={int(len(brd.stackup)-np.sum(brd.stackup))}")
+
+    # 11) Build return tuple compatible with current main.py
     ret = [
         brd.bxy,
         brd.ic_via_xy, brd.ic_via_type,
         brd.start_layers, brd.stop_layers, brd.via_type,
         brd.decap_via_xy, brd.decap_via_type,
+        brd.stackup,
     ]
     if getattr(brd, "buried_via_xy", None) is not None and brd.buried_via_xy.size > 0:
         ret += [brd.buried_via_xy, brd.buried_via_type]
@@ -263,6 +287,7 @@ def _extract_nodes(text: str):
         node_info[canon] = info      # <-- ONLY canonical key
 
     return node_info
+
 
 
 def _extract_connect_blocks(text: str):
@@ -638,3 +663,119 @@ def _fill_port_cavity_maps(brd, ic_blocks, decap_blocks):
     brd.top_port_num = np.array(top_port_num, dtype=object)
     brd.bot_port_num = np.array(bot_port_num, dtype=object)
 
+
+def _infer_stackup_mask(text: str, node_info=None) -> np.ndarray:
+    """
+    Return an int mask over Signal layers:
+       0 -> GND/return layer, 1 -> PWR layer
+    Preferred: use PatchSignal->Shape mapping, scanning shape body for '::pwr+' or '::gnd+'.
+    Fallback: if shapes are unavailable, mark a layer as PWR if any node on that layer is type==1.
+    """
+    # map '.Shape <name> ... .EndShape' bodies
+    shape_blocks = dict(re.findall(r"(?si)\.Shape\s+(\S+)\s*\n(.*?)(?:\.EndShape\b)", text))
+    # map 'PatchSignalN Shape=<name> Layer=SignalNN' in file order
+    patch = re.findall(r"(?mi)PatchSignal\d+\s+Shape\s*=\s*(\S+)\s+Layer\s*=\s*(Signal\d+)", text)
+
+    layer_to_type = {}
+    max_sig = 0
+    for shape_name, sig in patch:
+        try:
+            idx = int(re.sub(r"\D", "", sig))
+        except Exception:
+            continue
+        body = shape_blocks.get(shape_name, "")
+        s = body.lower()
+        has_pwr = bool(re.search(r"::\s*pwr\w*\+", s))
+        has_gnd = bool(re.search(r"::\s*gnd\w*\+", s))
+        # Decide 0/1; if mixed or ambiguous, prefer PWR (you can warn here if you like)
+        if has_pwr and not has_gnd:
+            v = 1
+        elif has_gnd and not has_pwr:
+            v = 0
+        elif has_pwr and has_gnd:
+            v = 1  # mixed pour (rare for your current boards) -> treat as PWR for mask
+        else:
+            v = 0  # default to GND if no explicit tag is found
+        layer_to_type[idx] = v
+        max_sig = max(max_sig, idx)
+
+    # Fallback using node_info if we found nothing in shapes
+    if not layer_to_type:
+        if node_info is None:
+            node_info = _extract_nodes(text)
+        for _, inf in node_info.items():
+            idx = int(inf["layer"])
+            layer_to_type[idx] = max(layer_to_type.get(idx, 0), int(inf["type"]))
+            max_sig = max(max_sig, idx)
+
+    # Build dense 1..max_sig mask (1-based -> 0-based array)
+    mask = np.zeros(max_sig, dtype=int)
+    for i in range(1, max_sig + 1):
+        mask[i - 1] = int(layer_to_type.get(i, 0))
+    
+    return mask
+
+# --- snapping & de-dup helpers ---
+
+def _snap(arr, decimals=7):
+    if arr is None or np.size(arr) == 0:
+        return arr
+    return np.round(np.asarray(arr, dtype=float), decimals)
+
+def _dedupe_group_inplace(arr, eps=1e-7, rdec=9):
+    """Make all points in arr unique within the group by nudging duplicates."""
+    if arr is None or np.size(arr) == 0:
+        return
+    a = np.asarray(arr, float)
+    seen = set()
+    for i in range(len(a)):
+        x, y = float(a[i, 0]), float(a[i, 1])
+        key = (round(x, rdec), round(y, rdec))
+        while key in seen:
+            x += eps; y += eps
+            key = (round(x, rdec), round(y, rdec))
+        seen.add(key)
+        a[i, 0], a[i, 1] = x, y
+    arr[:] = a  # in place
+
+def _to_keys(arr, rdec=9):
+    """Turn an (N,2) array-like into a set of rounded (x,y) tuples (array-safe)."""
+    if arr is None:
+        return set()
+    a = np.asarray(arr, float)
+    if a.size == 0:
+        return set()
+    a = a.reshape(-1, 2)
+    return {(round(float(x), rdec), round(float(y), rdec)) for x, y in a}
+
+def _dedupe_across_groups(brd, eps=1e-7, rdec=9):
+    """
+    Priority: IC -> Decap -> Buried.
+    Later groups nudge to avoid collisions with the union of earlier groups.
+    """
+    _dedupe_group_inplace(brd.ic_via_xy,    eps=eps, rdec=rdec)
+    _dedupe_group_inplace(brd.decap_via_xy, eps=eps, rdec=rdec)
+    if getattr(brd, "buried_via_xy", None) is not None and np.size(brd.buried_via_xy):
+        _dedupe_group_inplace(brd.buried_via_xy, eps=eps, rdec=rdec)
+
+    seen = _to_keys(brd.ic_via_xy, rdec=rdec)
+
+    if brd.decap_via_xy is not None and np.size(brd.decap_via_xy):
+        for i in range(len(brd.decap_via_xy)):
+            x, y = float(brd.decap_via_xy[i][0]), float(brd.decap_via_xy[i][1])
+            key = (round(x, rdec), round(y, rdec))
+            while key in seen:
+                x += eps; y += eps
+                key = (round(x, rdec), round(y, rdec))
+            seen.add(key)
+            brd.decap_via_xy[i] = [x, y]
+
+    if getattr(brd, "buried_via_xy", None) is not None and np.size(brd.buried_via_xy):
+        for i in range(len(brd.buried_via_xy)):
+            x, y = float(brd.buried_via_xy[i][0]), float(brd.buried_via_xy[i][1])
+            key = (round(x, rdec), round(y, rdec))
+            while key in seen:
+                x += eps; y += eps
+                key = (round(x, rdec), round(y, rdec))
+            seen.add(key)
+            brd.buried_via_xy[i] = [x, y]
