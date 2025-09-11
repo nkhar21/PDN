@@ -40,47 +40,47 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
 
     # 1) Board shapes -> brd.bxy
     brd.bxy = _extract_board_polygons(text)
-    log("\nBoard polygons extracted:\n", brd.bxy)
+    log("\n[SPD] Board polygons extracted:\n", brd.bxy)
 
     # 2) Nodes (coords, type, layer) -> node_info (with both raw+canon keys)
     node_info = _extract_nodes(text)
-    log("\nNodes extracted:\n", len(node_info), "examples:\n", list(node_info.items()))
+    log("\n[SPD] Nodes extracted:\n", len(node_info), "examples:\n", list(node_info.items()))
 
     # 3) .Connect blocks -> ic_blocks, decap_blocks (preserving order)
     ic_blocks, decap_blocks = _extract_connect_blocks(text)
-    log("\nIC blocks:\n", len(ic_blocks), "Decap blocks:\n", len(decap_blocks))
+    log("\n[SPD] IC blocks:\n", len(ic_blocks), "Decap blocks:\n", len(decap_blocks))
     log("IC block example:\n", ic_blocks[0] if ic_blocks else "N/A")
 
     # 4) IC/Decap vias in Connect order (names + xy + type)
     _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks)
-    log("\nIC vias:\n", len(getattr(brd, 'ic_node_names', [])),
+    log("\n[SPD] IC vias:\n", len(getattr(brd, 'ic_node_names', [])),
         "\nDecap vias:\n", len(getattr(brd, 'decap_node_names', [])))
 
     # 5) All via pairs (upper/lower nodes), canonicalized
     via_lines = _extract_via_lines(text)
-    log("Via lines extracted:\n", len(via_lines), "examples:\n", via_lines[:5])
+    log("[SPD] Via lines extracted:\n", len(via_lines), "examples:\n", via_lines[:5])
 
     # 6) Start/stop/type arrays for ALL vias (IC+DECAP order as in Connect)
     sl, tl, vt = _extract_start_stop_type(via_lines, node_info, ic_blocks, decap_blocks)
     brd.start_layers = np.asarray(sl, np.int32) - 1
     brd.stop_layers  = np.asarray(tl, np.int32) - 1
     brd.via_type     = np.asarray(vt, np.int32)
-    log("Start/stop/type arrays:\n", brd.start_layers, brd.stop_layers, brd.via_type)
+    log("[SPD] Start/stop/type arrays:\n", brd.start_layers, brd.stop_layers, brd.via_type)
     
 
     # 7) Buried vias (optional)
     _fill_buried_vias(brd, via_lines, node_info)
     if hasattr(brd, 'buried_via_xy'):
-        log("Buried vias:\n", len(brd.buried_via_type), "example types:\n", brd.buried_via_type[:5])
+        log("[SPD] Buried vias:\n", len(brd.buried_via_type), "example types:\n", brd.buried_via_type[:5])
 
     # 8) Via cavity location flags from node layers (top=1, bottom=0)
     _fill_via_locs(brd, node_info)
-    log("IC via locs:\n", getattr(brd, 'ic_via_loc', "N/A"))
+    log("[SPD] IC via locs:\n", getattr(brd, 'ic_via_loc', "N/A"))
 
     # 9) Exact per-via → (port, cavity) map for SPD inputs
     _fill_port_cavity_maps(brd, ic_blocks, decap_blocks)
-    log("IC via port/cavity maps:\n", getattr(brd, 'top_port_num', "N/A"))
-    log("Decap via port/cavity maps:\n", getattr(brd, 'bot_port_num', "N/A"))
+    log("[SPD] IC via port/cavity maps:\n", getattr(brd, 'top_port_num', "N/A"))
+    log("[SPD] Decap via port/cavity maps:\n", getattr(brd, 'bot_port_num', "N/A"))
 
     # --- (3) Assign/snap/cast moved here ---
     SNAP_DEC = 7
@@ -119,7 +119,6 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
 
 
 # ---- private helpers (lift logic from your current SPD branch) ---------------
-
 
 def _read(path: str) -> str:
     """
@@ -287,7 +286,6 @@ def _extract_nodes(text: str):
         node_info[canon] = info      # <-- ONLY canonical key
 
     return node_info
-
 
 
 def _extract_connect_blocks(text: str):

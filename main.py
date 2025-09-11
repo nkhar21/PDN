@@ -24,7 +24,7 @@ def gen_brd_data(
     Build board state and compute Z using external parsers for SPD and stackup/layer-type.
     """
     # --- 1) Parse SPD (board shapes, vias, layers, etc.) ---
-    result = parse_spd(brd, spd_path, verbose=False)
+    result = parse_spd(brd, spd_path, verbose=True)
 
     # Accept new 9/11 tuple (stackup included)
     if len(result) == 9:

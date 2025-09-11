@@ -1313,7 +1313,7 @@ class PDN():
                 top_port_num = tpn
                 bot_port_num = bpn
             elif verbose:
-                print("[WARN] Provided top/bot_port_num length mismatch; falling back to heuristic.")
+                print("PDN [WARN] Provided top/bot_port_num length mismatch; falling back to heuristic.")
         ############################ nk ############################
 
         # ---- Heuristic mapping (only used if explicit maps are unusable) ----
@@ -1461,28 +1461,28 @@ class PDN():
         # ########################## debug nk ##########################
         if verbose:
             # 1) Which layers are "anchored"?
-            print("[DBG] layer_com_node:", layer_com_node.tolist())
+            print("[PDN DBG] layer_com_node:", layer_com_node.tolist())
             # -1 means: no via terminating on that layer for the relevant net
 
             # 2) Which extra branches are the inter-layer capacitors attached to?
             cap_branch_rows = list(range(L_new_inv.shape[0], new_branch_n))
             caps_triplets = new_branch_nodes_w_c[cap_branch_rows, :].astype(int).tolist()
-            print("[DBG] cap branches (branch_id, node1, node2):", caps_triplets)
+            print("[PDN DBG] cap branches (branch_id, node1, node2):", caps_triplets)
 
             # 3) Old->new node map (the nodes present in the reduced system)
             map2old_node = new_old_node_map[:, 1].astype(int).tolist()
-            print("[DBG] map2old_node:", map2old_node)
+            print("[PDN DBG] map2old_node:", map2old_node)
 
             # 4) Port mapping sanity
-            print("[DBG] port_node (+, -) per port:\n", port_node.astype(int))
+            print("[PDN DBG] port_node (+, -) per port:\n", port_node.astype(int))
             invalid_ports = np.where((port_node[:, 0] < 0) | (port_node[:, 1] < 0))[0]
             if invalid_ports.size:
-                print("[ERR] Ports with invalid +/- node indices:", invalid_ports.tolist())
+                print("[PDN ERR] Ports with invalid +/- node indices:", invalid_ports.tolist())
 
             # 5) Degenerate branches (node1 == node2)
             bad_branches = np.where(new_branch_nodes_w_c[:, 1] == new_branch_nodes_w_c[:, 2])[0]
             if bad_branches.size:
-                print("[WARN] Branches with identical endpoints:", bad_branches.astype(int).tolist())
+                print("[PDN WARN] Branches with identical endpoints:", bad_branches.astype(int).tolist())
 
             # 6) Connectivity from reference (will set below, but we can preview using first port's ground)
             ref_node_dbg = int(port_node[0, 1])
@@ -1508,9 +1508,9 @@ class PDN():
                             stack.append(u)
                 disconnected = np.where(~seen)[0]
                 if disconnected.size:
-                    print("[ERR] Disconnected nodes (not reachable from reference):", disconnected.astype(int).tolist())
+                    print("[PDN ERR] Disconnected nodes (not reachable from reference):", disconnected.astype(int).tolist())
             else:
-                print("[ERR] ref_node not found in map2old_node. ref_node=", ref_node_dbg, "map:", map2old_node)
+                print("[PDN ERR] ref_node not found in map2old_node. ref_node=", ref_node_dbg, "map:", map2old_node)
 
             # 7) Optional rank check at a few frequencies
             def _rank(M):
@@ -1519,7 +1519,7 @@ class PDN():
             for fi in (0, len(freq)//2, len(freq)-1):
                 try:
                     r = _rank(Yn[fi])
-                    print(f"[DBG] rank(Yn[{fi}])={r} size={Yn.shape[1]}")
+                    print(f"PDN [DBG] rank(Yn[{fi}])={r} size={Yn.shape[1]}")
                 except Exception as _:
                     pass
 
