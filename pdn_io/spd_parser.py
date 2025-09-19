@@ -158,10 +158,6 @@ def _read(path: str, verbose: bool = False) -> str:
     except OSError as e:
         raise OSError(f"Failed to read SPD file '{path}': {e.strerror or e}") from e
 
-from typing import List
-import re
-import numpy as np
-
 def _extract_board_polygons(
     text: str,
     ground_net: str = "gnd",
@@ -391,7 +387,6 @@ def _extract_connect_blocks(text: str, ic_port_tag: str = "ic_port", decap_port_
 
     return ic_blocks, decap_blocks
 
-import re
 
 def _extract_port_blocks(
     text: str, ic_port_tag: str = "ic_port", decap_port_tag: str = "decap_port", pwr_net: str = "pwr"
@@ -449,98 +444,146 @@ def _extract_port_blocks(
     return ic_blocks, decap_blocks
 
 
-
-def _extract_via_lines(text: str):
+def _extract_via_lines(text: str, pwr_net: str = "pwr", gnd_net: str = "gnd"):
     """
-    Return list of (upper_node, lower_node) names (canonicalized).
+    Return list of (upper_node, lower_node) canonical names, filtered to the requested nets.
 
-    Matches lines like:
-      Via12::Through     UpperNode = Node013::PAD  LowerNode = Node7::VIA
-    …as well as variants without the extra qualifiers after 'ViaNNN' or 'NodeNNN'.
+    Keeps a via ONLY if:
+      - Both UpperNode and LowerNode tags are present and equal, and
+      - That tag is EXACTLY one of {pwr_net, gnd_net} (case-insensitive), and
+      - If the Via line itself has a tag, it must match the same tag (when present).
+
+    Examples kept (with pwr_net='pwr', gnd_net='gnd'):
+      Via..::pwr  UpperNode = Node..::pwr  LowerNode = Node..::pwr
+      Via..::GND  UpperNode = Node..::GND  LowerNode = Node..::GND
+    Examples dropped:
+      Via..::pwr1 ... (nodes ::pwr1)   # not the requested power tag
+      Mixed tags between upper/lower.
     """
-    # Allow optional qualifiers after 'ViaNNN' and after each Node token.
-    # Use \s so Upper/Lower can be on the same or separate lines.
-    pattern = (
-        r"Via\d+(?:::\w+)?\s+"
-        r"UpperNode\s*=\s*(Node\d+)(?:::\w+)?\s+"
-        r"LowerNode\s*=\s*(Node\d+)(?:::\w+)?"
+    # Capture via tag (optional) and node tags (optional), allow newlines between tokens.
+    pattern = re.compile(
+        r"Via\d+(?:::(?P<vtag>[A-Za-z0-9_]+))?\s+"
+        r"UpperNode\s*=\s*(?P<un>Node\d+)(?:::(?P<utag>[A-Za-z0-9_]+))?\s+"
+        r"LowerNode\s*=\s*(?P<ln>Node\d+)(?:::(?P<ltag>[A-Za-z0-9_]+))?",
+        flags=re.IGNORECASE | re.DOTALL,
     )
-    pairs = re.findall(pattern, text, flags=re.IGNORECASE)
 
-    # Canonicalize (e.g., 'Node013' -> 'Node13') and preserve order
-    return [(canon_node(u), canon_node(l)) for (u, l) in pairs]
+    allowed = { (pwr_net or "").lower(), (gnd_net or "").lower() }
+    out = []
+
+    for m in pattern.finditer(text):
+        un    = m.group("un")
+        ln    = m.group("ln")
+        vtag  = (m.group("vtag")  or "").lower()
+        utag  = (m.group("utag")  or "").lower()
+        ltag  = (m.group("ltag")  or "").lower()
+
+        # Must have node tags and they must match each other
+        if not utag or not ltag or utag != ltag:
+            continue
+        # Node tag must be one of the requested nets
+        if utag not in allowed:
+            continue
+        # If via has a tag, it must agree with the node tag
+        if vtag and vtag != utag:
+            raise ValueError(f"Via tag '{vtag}' disagrees with node tag '{utag}'")
+
+        out.append((canon_node(un), canon_node(ln)))
+
+    return out
 
 def _extract_start_stop_type(via_lines, node_info, ic_blocks, decap_blocks):
     """
-    Reproduce your extract_start_stop_layers_strict_order(...) logic.
-    Returns:
-        start_layers: np.ndarray[int]   # Signal layer numbers (1-based)
-        stop_layers:  np.ndarray[int]   # Signal layer numbers (1-based)
-        via_type:     np.ndarray[int]   # 1 if either endpoint is PWR, else 0
-    Notes:
-        - Canonicalizes node names before searching (e.g., 'Node013' -> 'Node13').
-        - Pairs are collected in IC block order first, then decap blocks.
-        - Entries whose nodes don't resolve to a known via are skipped.
+    Build (start_layers, stop_layers, via_type) using .Port blocks.
+
+    Inputs
+    ------
+    via_lines   : list[tuple[str,str]]
+        Canonical node pairs for vias, e.g. [('Node1','Node4'), ...]
+    node_info   : dict[str, dict]
+        Per-node info; keys are canonical names. Must contain:
+          - 'layer' : int (Signal## index as int)
+          - 'type'  : int (1 for PWR, 0 for GND)  <-- used to derive via_type
+    ic_blocks   : list[str]
+        Each item is a single-port text block from the .Port section
+        containing "... PositiveTerminal ... NegativeTerminal ..." lines.
+    decap_blocks: list[str]
+        Same as ic_blocks, for decap ports.
+
+    Returns
+    -------
+    start_layers: list[int]   # 1-based layer indices (SignalN)
+    stop_layers : list[int]
+    via_type    : list[int]   # 1 if either endpoint node is PWR, else 0
     """
 
-    def find_via_by_node(node: str):
-        """Return (start_layer, stop_layer, upper_name, lower_name) for the first via touching `node`."""
+    def find_via_by_node(node_can):
+        """Return (start_layer, stop_layer, upper_name, lower_name) for the first via touching node_can."""
         for upper, lower in via_lines:
-            if upper == node or lower == node:
+            if upper == node_can or lower == node_can:
                 if (upper in node_info) and (lower in node_info):
                     return (
                         node_info[upper]['layer'],
                         node_info[lower]['layer'],
                         upper,
-                        lower
+                        lower,
                     )
         return None
 
-    def _nodes_from_block(block: str):
-        """Extract ordered plus/minus node name lists (canonicalized) from a .Connect block body."""
-        lines = [ln.strip() for ln in block.strip().splitlines()]
-        plus_nodes = []
-        minus_nodes = []
-        for ln in lines:
-            if ln.startswith("1") or ln.startswith("2"):
-                m = re.search(r"\$Package\.(Node\d+)", ln)
-                if not m:
-                    continue
-                node = canon_node(m.group(1))
-                if ln.startswith("1"):
-                    plus_nodes.append(node)
-                else:
-                    minus_nodes.append(node)
-        return plus_nodes, minus_nodes
+    def _nodes_from_port_block(block_text):
+        """
+        Parse a .Port block into ordered (pos_nodes, neg_nodes) lists of canonical node names.
+        Robust to '+' continuations, mixed case, and multi-line terminals.
+        """
+        # Capture everything after 'PositiveTerminal' up to the next 'NegativeTerminal' / next 'Port' / '.EndPort' / end
+        pos_m = re.search(
+            r'(?is)PositiveTerminal\s+(.+?)(?=\n\s*\+\s*NegativeTerminal\b|\n\s*Port\d+|\n\s*\.EndPort\b|$)',
+            block_text
+        )
+        neg_m = re.search(
+            r'(?is)NegativeTerminal\s+(.+?)(?=\n\s*\+\s*PositiveTerminal\b|\n\s*Port\d+|\n\s*\.EndPort\b|$)',
+            block_text
+        )
+        pos_chunk = pos_m.group(1) if pos_m else ""
+        neg_chunk = neg_m.group(1) if neg_m else ""
+
+        # Find nodes in the order they appear
+        pos_raw = re.findall(r'\$Package\.(Node\d+)', pos_chunk, flags=re.IGNORECASE)
+        neg_raw = re.findall(r'\$Package\.(Node\d+)', neg_chunk, flags=re.IGNORECASE)
+
+        pos_nodes = [canon_node(n) for n in pos_raw]
+        neg_nodes = [canon_node(n) for n in neg_raw]
+        return pos_nodes, neg_nodes
 
     def process_blocks(blocks):
-        results = []
+        starts, stops, types = [], [], []
         for blk in blocks:
-            plus_nodes, minus_nodes = _nodes_from_block(blk)
-            for p_node, m_node in zip(plus_nodes, minus_nodes):
-                # + via
-                p_result = find_via_by_node(p_node)
-                if p_result:
-                    start, stop, u, l = p_result
-                    typ = 1 if (node_info[u]['type'] == 1 or node_info[l]['type'] == 1) else 0
-                    results.append((start, stop, typ))
-                # - via
-                m_result = find_via_by_node(m_node)
-                if m_result:
-                    start, stop, u, l = m_result
-                    typ = 1 if (node_info[u]['type'] == 1 or node_info[l]['type'] == 1) else 0
-                    results.append((start, stop, typ))
-        return results
+            pos_nodes, neg_nodes = _nodes_from_port_block(blk)
 
-    ic_entries    = process_blocks(ic_blocks)
-    decap_entries = process_blocks(decap_blocks)
+            # Preserve port order: all positives first, then all negatives
+            for node in pos_nodes + neg_nodes:
+                if node not in node_info:
+                    continue
+                hit = find_via_by_node(node)
+                if not hit:
+                    continue
+                s_layer, t_layer, u, l = hit
+                starts.append(s_layer)
+                stops.append(t_layer)
+                # via_type = 1 if either endpoint is a power node, else 0
+                vtype = 1 if (node_info[u].get('type', 0) == 1 or node_info[l].get('type', 0) == 1) else 0
+                types.append(vtype)
+        return starts, stops, types
 
-    all_entries   = ic_entries + decap_entries
-    start_layers  = np.array([e[0] for e in all_entries], dtype=int)
-    stop_layers   = np.array([e[1] for e in all_entries], dtype=int)
-    via_type      = np.array([e[2] for e in all_entries], dtype=int)
+    ic_s, ic_t, ic_v = process_blocks(ic_blocks)
+    dc_s, dc_t, dc_v = process_blocks(decap_blocks)
+
+    start_layers = ic_s + dc_s
+    stop_layers  = ic_t + dc_t
+    via_type     = ic_v + dc_v
 
     return start_layers, stop_layers, via_type
+
 
 def _fill_ic_decap_vias(
     brd,
