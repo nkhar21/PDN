@@ -1095,6 +1095,7 @@ class PDN():
 
         self.via_r = 0.2e-3
 
+
         self.ic_via_xy = np.array([])  # original x,y locations of vias, 2-column matrix
         self.ic_via_type = np.array([])  # original type of vias. 1 for pwr, 0 for gnd
 

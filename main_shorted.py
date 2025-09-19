@@ -3,15 +3,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pathlib
 
+from copy import deepcopy
 from code_pdn_AH import PDN
-import time
 import os
 import skrf as rf
 from input_AH import input_path, stackup_path, touchstone_path
 
 from pdn_io.spd_parser import parse_spd
 from pdn_io.stackup_parser import read_stackup
+from pdn_analysis.ztool import short_1port_toolz, short_1port_z, short_ports_reduce_z
 from pdn_analysis.plotting import plot_z_matrix
+
  
 def gen_brd_data(
     brd,
@@ -92,6 +94,75 @@ def gen_brd_data(
         raise ValueError(f"Unexpected number of return values from gen_brd_data: {len(result)}")
 
 
+def compare_touchstone_with_python_z(touchstone_path, python_z, freq):
+    try:
+        ntw = rf.Network(touchstone_path)
+        z_touchstone = ntw.z
+
+        if not np.allclose(ntw.f, freq):
+
+            ntw = ntw.interpolate(freq, kind='linear')
+            z_touchstone = ntw.z
+
+        n_ports = z_touchstone.shape[1]
+        for i in range(n_ports):
+            for j in range(n_ports):
+                plt.figure()
+                plt.plot(freq / 1e6, 20 * np.log10(np.abs(python_z[:, i, j]) + 1e-20), label='Python Z')
+                plt.plot(freq / 1e6, 20 * np.log10(np.abs(z_touchstone[:, i, j]) + 1e-20), '--', label='Touchstone Z')
+
+                plt.xlabel('Frequency (MHz)')
+                plt.ylabel(f'|Z{i+1}{j+1}| (dBΩ)')
+                plt.title(f'Comparison of Z{i+1}{j+1}')
+                plt.legend()
+                plt.grid(True)
+                plt.tight_layout()
+                plt.show()
+    except Exception as e:
+        print(f"[ERROR] Failed to compare Touchstone and Python Z: {e}")
+
+def compare_shorted_z(touchstone_path, python_z, freq, shorted_port_idx):
+    """
+    Compare Z-parameters after shorting a port between Python solver and Touchstone.
+    
+    freq : ndarray (Hz) — frequency array used in python_z
+    """
+    try:
+        # Build scikit-rf Frequency object from given numpy freq array
+        Freq = rf.Frequency.from_f(freq, unit='hz')
+
+        # --- Load and interpolate Touchstone onto the same freq grid ---
+        ntw = rf.Network(touchstone_path).interpolate(Freq, kind='linear')
+        z_touchstone = ntw.z  # shape (201, n, n)
+
+        # --- Short the port for each frequency ---
+        python_z_shorted = np.array([short_1port_toolz(z, shorted_port_idx) for z in python_z])
+        touchstone_z_shorted = np.array([short_1port_toolz(z, shorted_port_idx) for z in z_touchstone])
+
+        # --- Plot comparison ---
+        n_ports = python_z_shorted.shape[1]
+        for i in range(n_ports):
+            for j in range(n_ports):
+                plt.figure()
+                plt.semilogx(freq / 1e6,
+                             20 * np.log10(np.abs(python_z_shorted[:, i, j]) + 1e-20),
+                             label='Python Z (shorted)')
+                plt.semilogx(freq / 1e6,
+                             20 * np.log10(np.abs(touchstone_z_shorted[:, i, j]) + 1e-20),
+                             '--',
+                             label='Touchstone Z (shorted)')
+                plt.xlabel('Frequency (MHz)')
+                plt.ylabel(f'|Z{i+1}{j+1}| (dBΩ)')
+                plt.title(f'Comparison of Shorted Z{i+1}{j+1}')
+                plt.legend()
+                plt.grid(True, which='both', ls='--')
+                plt.tight_layout()
+                plt.show()
+
+    except Exception as e:
+        print(f"[ERROR] Failed to compare shorted Z: {e}")
+
+
 
 def save2s(self, z, filename, path, z0=50):
     brd = rf.Network()
@@ -109,7 +180,6 @@ def detect_ic_port_index(touchstone_path: str) -> int:
             idx = int(m.group(1)) - 1  # zero-based
             break
     return idx if idx is not None else 2  # fallback to 2 (port 3) for b4_1.S3P
-
 
 
 if __name__ == '__main__':
@@ -137,52 +207,18 @@ if __name__ == '__main__':
 
     ic_port_index = detect_ic_port_index(touchstone_path)
     
-    board_num = "4_1"
-    board_name = f"board{board_num}"
-    
-    save2s(brd, z, board_name, BASE_PATH)
-    t0 = time.time()
-
     fstart = 10e3
     fstop = 200e6
     nf = 201
     freq = np.logspace(np.log10(fstart), np.log10(fstop), nf)
     Freq = rf.Frequency(start=fstart/1e6, stop=fstop/1e6, npoints=nf, unit='mhz', sweep_type='log')
     
-    powersi_snp = rf.Network(touchstone_path).interpolate(Freq)
-    input_net = powersi_snp.z
-
-    try:
-        # First plot Python Z11
-        fig, ax = plot_z_matrix(
-            freq=freq,
-            z_matrix=z,
-            indices=(ic_port_index, ic_port_index),
-            legend=["Python Z11"],
-            scale=("log","log"),
-            xlabel="Frequency (Hz)",
-            ylabel="Impedance (Ω)",
-            title="Comparison",
-            color="blue",
-            linestyle="-",
-            linewidth=2,
-        )
-
-        # Overlay another curve
-        _, ax = plot_z_matrix(
-            freq=freq,
-            z_matrix=input_net,
-            indices=(ic_port_index, ic_port_index),
-            legend=["PowerSI Z11"],
-            color="red",
-            linestyle="--",
-            linewidth=2,
-            ax=ax,
-        )
-
-        plt.show()
-
-    except Exception as e:
-        print(f"[ERROR] Touchstone failed: {e}")
+    compare_shorted_z(
+        touchstone_path=touchstone_path,
+        python_z=z,
+        freq=freq,
+        shorted_port_idx=ic_port_index
+    )
+    
 
 

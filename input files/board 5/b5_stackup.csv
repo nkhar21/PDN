@@ -1,0 +1,22 @@
+Layer #,Layer Name,Thickness(mm),Material,Conductivity(S/m),Fill-in Dielectric,Er,Loss Tangent,Shape Name,Trace Width(mm),Trapezoidal Angle(deg),Roughness Upper,Roughness Lower,Roughness Side,Dogleg Hole Threshold(mm),Thermal Hole Threshold(mm),Small Hole Threshold(mm),Via Hole Threshold(mm),Slender Hole Area Threshold(mm^2),Slender Hole Size Threshold(mm),Auto Special Void
+1,Signal1,0.015,COPPER,5.000000e+07,AIR,1,0,Signal$TOPpkgshape,0.092,78.69,[None],[None],,0.1,0.1,0.1,0.1,0,0,off
+,Medium1,0.045,FR-4,,,3.43,0,,,,,,,,,,,,,
+2,Signal2,0.015,COPPER,5.000000e+07,AIR,1,0,Signal$L2pkgshape,0.06,78.69,[None],[None],,0.1,0.1,0.1,0.1,0,0,off
+,Medium2,0.043,FR-4,,,3.43,0,,,,,,,,,,,,,
+3,Signal3,0.015,COPPER,5.000000e+07,AIR,1,0,Signal$L3pkgshape,0.06,78.69,[None],[None],,0.1,0.1,0.1,0.1,0,0,off
+,Medium3,0.046,FR-4,,,3.43,0,,,,,,,,,,,,,
+4,Signal4,0.015,COPPER,5.000000e+07,AIR,1,0,Signal$L4pkgshape,0.06,78.69,[None],[None],,0.1,0.1,0.1,0.1,0,0,off
+,Medium4,0.043,FR-4,,,3.43,0,,,,,,,,,,,,,
+5,Signal5,0.015,COPPER,5.000000e+07,AIR,1,0,Signal$L5pkgshape,0.06,78.69,[None],[None],,0.1,0.1,0.1,0.1,0,0,off
+,Medium5,0.0475,FR-4_1,,,3.38,0,,,,,,,,,,,,,
+6,Signal6,0.015,COPPER,5.000000e+07,AIR,1,0,Signal$L6pkgshape,0.06,78.69,[None],[None],,0.1,0.1,0.1,0.1,0,0,off
+,Medium6,0.065,FR-4_2,,,3.85,0,,,,,,,,,,,,,
+7,Signal7,0.015,COPPER,5.000000e+07,AIR,1,0,Signal$L7pkgshape,0.06,78.69,[None],[None],,0.1,0.1,0.1,0.1,0,0,off
+,Medium7,0.0475,FR-4_1,,,3.38,0,,,,,,,,,,,,,
+8,Signal8,0.015,COPPER,5.000000e+07,AIR,1,0,Signal$L8pkgshape,0.06,78.69,[None],[None],,0.1,0.1,0.1,0.1,0,0,off
+,Medium8,0.043,FR-4,,,3.43,0,,,,,,,,,,,,,
+9,Signal9,0.015,COPPER,5.000000e+07,AIR,1,0,Signal$L9pkgshape,0.06,78.69,[None],[None],,0.1,0.1,0.1,0.1,0,0,off
+,Medium9,0.046,FR-4,,,3.43,0,,,,,,,,,,,,,
+10,Signal10,0.015,COPPER,5.000000e+07,AIR,1,0,Signal$L10pkgshape,0.06,78.69,[None],[None],,0.1,0.1,0.1,0.1,0,0,off
+,Medium10,0.043,FR-4,,,3.43,0,,,,,,,,,,,,,
+11,Signal11,0.015,COPPER,5.000000e+07,AIR,1,0,Signal$L11pkgshape,0.06,78.69,[None],[None],,0.1,0.1,0.1,0.1,0,0,off

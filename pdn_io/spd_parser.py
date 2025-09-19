@@ -36,7 +36,7 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
     """
     log = print if verbose else (lambda *args, **kwargs: None)
 
-    text = _read(spd_path)
+    text = _read(spd_path, verbose=verbose)
 
     # 1) Board shapes -> brd.bxy
     brd.bxy = _extract_board_polygons(text)
@@ -44,17 +44,17 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
 
     # 2) Nodes (coords, type, layer) -> node_info (with both raw+canon keys)
     node_info = _extract_nodes(text)
-    log("\n[SPD] Nodes extracted:\n", len(node_info), "examples:\n", list(node_info.items()))
+    log("\n[SPD] Nodes extracted:\n", len(node_info), "examples:\n", list(node_info.items())[:5])
 
     # 3) .Connect blocks -> ic_blocks, decap_blocks (preserving order)
     ic_blocks, decap_blocks = _extract_connect_blocks(text)
-    log("\n[SPD] IC blocks:\n", len(ic_blocks), "Decap blocks:\n", len(decap_blocks))
-    log("IC block example:\n", ic_blocks[0] if ic_blocks else "N/A")
+    log("\n[SPD] IC blocks:", len(ic_blocks), "Decap blocks:", len(decap_blocks))
+    log("\nIC block example: ", ic_blocks[0] if ic_blocks else "N/A")
 
     # 4) IC/Decap vias in Connect order (names + xy + type)
     _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks)
-    log("\n[SPD] IC vias:\n", len(getattr(brd, 'ic_node_names', [])),
-        "\nDecap vias:\n", len(getattr(brd, 'decap_node_names', [])))
+    log("\n[SPD] IC vias:", len(getattr(brd, 'ic_node_names', [])),
+        "\nDecap vias:", len(getattr(brd, 'decap_node_names', [])))
 
     # 5) All via pairs (upper/lower nodes), canonicalized
     via_lines = _extract_via_lines(text)
@@ -71,11 +71,16 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
     # 7) Buried vias (optional)
     _fill_buried_vias(brd, via_lines, node_info)
     if hasattr(brd, 'buried_via_xy'):
-        log("[SPD] Buried vias:\n", len(brd.buried_via_type), "example types:\n", brd.buried_via_type[:5])
+        log("[SPD] Buried vias:", len(brd.buried_via_type))
+        log("[SPD] Buried via start layers:", brd.start_layers[-len(brd.buried_via_xy):])
+        log("[SPD] Buried via stop layers:", brd.stop_layers[-len(brd.buried_via_xy):])
+        log("[SPD] Buried via type layers:", brd.via_type[-len(brd.buried_via_xy):])
+
 
     # 8) Via cavity location flags from node layers (top=1, bottom=0)
     _fill_via_locs(brd, node_info)
     log("[SPD] IC via locs:\n", getattr(brd, 'ic_via_loc', "N/A"))
+    log("[SPD] Decap via locs:\n", getattr(brd, 'decap_via_loc', "N/A"))
 
     # 9) Exact per-via → (port, cavity) map for SPD inputs
     _fill_port_cavity_maps(brd, ic_blocks, decap_blocks)
@@ -120,7 +125,7 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
 
 # ---- private helpers (lift logic from your current SPD branch) ---------------
 
-def _read(path: str) -> str:
+def _read(path: str, verbose: bool = False) -> str:
     """
     Read an SPD file as text (UTF-8). Raises a clear, actionable error if it fails.
     """
@@ -132,7 +137,13 @@ def _read(path: str) -> str:
 
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return f.read()
+            text = f.read()
+            if verbose:
+                print(f"[SPD_READ] Successfully read SPD file: {path}")
+                print(f"[SPD_READ] File length: {len(text)} characters")
+                print(f"[SPD_READ] First 200 chars:\n{text[:200]}")
+                print("-------------------------------------------")
+            return text
     except UnicodeDecodeError:
         # Fallback: try with 'errors=ignore' but make it explicit in the error
         try:
@@ -150,7 +161,16 @@ def _extract_board_polygons(text: str, *, tol: float = 1e-9) -> List[np.ndarray]
     Parse .Shape blocks referenced by PatchSignal.. assignments and return a list
     of polygons (each as Nx2 array in meters). Boxes are expanded to rectangles.
     If multiple polygons/boxes are identical within `tol`, the list is collapsed
-    to a single instance (to match your original main.py behavior).
+    to a single instance.
+
+    Robust board outline detection:
+      1) Collect candidate polygons/boxes from .Shape sections whose names are NOT per-layer pkg shapes
+         (ignore names containing '$' or 'pkgshape', case-insensitively).
+         Pick the candidate whose area is closest to the global node bounding-box area, and is at least
+         a fraction (default 50%) of that area. This avoids selecting tiny pkg boxes.
+      2) If none found, try CuttingBoundary polygon.
+      3) If still none, use bounding rectangle of all Node X/Y with small pad.
+    Returns [Nx2 array in meters] or [].
     """
 
     import re
@@ -237,14 +257,14 @@ def _extract_board_polygons(text: str, *, tol: float = 1e-9) -> List[np.ndarray]
                                    [x0, y1], [x0, y0]], dtype=float) * 1e-3
                 box_shapes.append(coords)
 
-    # --- Collapse identicals (as in your main.py) ---
+    # --- Collapse identicals ---
     def _collapse(shapes: List[np.ndarray]) -> List[np.ndarray]:
         if not shapes:
             return []
         first = shapes[0]
         all_same = all(
             (s.shape == first.shape) and np.allclose(s, first, atol=tol)
-            for s in shapes
+             for s in shapes
         )
         return [first] if all_same else shapes
 
@@ -255,7 +275,7 @@ def _extract_board_polygons(text: str, *, tol: float = 1e-9) -> List[np.ndarray]
     return []
 
 
-def _extract_nodes(text: str):
+def _extract_nodes(text: str, pwr_net: str = "pwr") -> dict:
     """
     Build node_info dict with ONLY canonical keys ('Node013' -> 'Node13'):
       node_info['Node13'] = {'type': 1|0, 'x': mm, 'y': mm, 'layer': int}
@@ -265,30 +285,29 @@ def _extract_nodes(text: str):
       - 'layer' is the integer from 'Signal##'
     """
     pattern = (
-        r"(Node\d+)"                  # raw node name
-        r"(?:::)?(PWR|GND)?"          # optional ::PWR or ::GND
+        r"(Node\d+)"                  # raw node
+        r"(?:::)?([A-Za-z0-9_]+)?"    # optional ::NET
         r"\s+X\s*=\s*([-\d\.eE\+]+)mm"
         r"\s+Y\s*=\s*([-\d\.eE\+]+)mm"
         r"\s+Layer\s*=\s*Signal(\d+)"
     )
-
     node_lines = re.findall(pattern, text, flags=re.IGNORECASE)
 
     node_info = {}
-    for raw, typ, x_str, y_str, layer_str in node_lines:
+    for raw, tag, x_str, y_str, layer_str in node_lines:
+        tag_l = (tag or "").lower()
+        is_power = tag_l.startswith(pwr_net)           # pwr, pwr1..pwrN
         info = {
-            "type": 1 if (typ and typ.lower() == "pwr") else 0,
-            "x": float(x_str),       # mm
-            "y": float(y_str),       # mm
-            "layer": int(layer_str)  # e.g., Signal03 -> 3
+            "type": 1 if is_power else 0,
+            "net":  tag_l if tag_l else None,        # 'gnd', 'pwr2', ...
+            "x": float(x_str), "y": float(y_str),    # mm
+            "layer": int(layer_str)                  # 1-based
         }
-        canon = canon_node(raw)      # e.g., "Node013" -> "Node13"
-        node_info[canon] = info      # <-- ONLY canonical key
-
+        node_info[canon_node(raw)] = info
     return node_info
 
 
-def _extract_connect_blocks(text: str):
+def _extract_connect_blocks(text: str, ic_port_tag: str = "ic_port", decap_port_tag: str = "decap_port") -> tuple:
     """
     Return (ic_blocks, decap_blocks) preserving file order.
 
@@ -308,7 +327,7 @@ def _extract_connect_blocks(text: str):
     ic_blocks = [
         m.group(1)
         for m in re.finditer(
-            r"(?si)\.Connect\s+ic_port[^\n]*\n(.*?)(?:\.EndC\b)",
+            rf"(?si)\.Connect\s+{ic_port_tag}[^\n]*\n(.*?)(?:\.EndC\b)",
             component_block,
         )
     ]
@@ -317,7 +336,7 @@ def _extract_connect_blocks(text: str):
     decap_blocks = [
         m.group(1)
         for m in re.finditer(
-            r"(?si)\.Connect\s+(?:decap|cap)_port\d*\s+[^\n]*\n(.*?)(?:\.EndC\b)",
+            rf"(?si)\.Connect\s+(?:{decap_port_tag})\d*\s+[^\n]*\n(.*?)(?:\.EndC\b)",
             component_block,
         )
     ]
@@ -455,7 +474,13 @@ def _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks, snap_dec=7):
                     info = node_info[n]
                     names_ordered.append(n)
                     xy_list.append([info["x"] * 1e-3, info["y"] * 1e-3])  # mm -> m
-                    type_list.append(info["type"])
+                    # b5 fix
+                    if info["net"] == "gnd":
+                        type_list.append(0)
+                    elif info["net"] and info["net"].startswith("pwr"):
+                        type_list.append(1)
+                    else:
+                        type_list.append(0)  # default fallback
 
         if len(xy_list) == 0:
             xy_arr = np.zeros((0, 2), dtype=float)
@@ -475,6 +500,11 @@ def _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks, snap_dec=7):
     brd.decap_node_names = decap_names
     brd.decap_via_xy = decap_xy
     brd.decap_via_type = decap_type
+    # Debug summary for IC via types
+    if len(ic_type):
+        print(f"[SPD_MULTI][IC_DBG] total={len(ic_type)}, "
+            f"type0={np.sum(ic_type == 0)}, type1={np.sum(ic_type == 1)}")
+    
 
 def _fill_buried_vias(brd, via_lines, node_info):
     """
@@ -510,7 +540,7 @@ def _fill_buried_vias(brd, via_lines, node_info):
 
     for upper, lower in via_lines:
         if upper not in node_info or lower not in node_info:
-            continue
+            raise ValueError("node_info missing entry for via endpoints: {}".format((upper, lower)))
 
         up = node_info[upper]
         lo = node_info[lower]
