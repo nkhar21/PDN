@@ -39,7 +39,7 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
     text = _read(spd_path, verbose=verbose)
 
     # 1) Board shapes -> brd.bxy
-    brd.bxy = _extract_board_polygons(text)
+    brd.bxy = _extract_board_polygons(text, debug=verbose)
     log("\n[SPD] Board polygons extracted:\n", brd.bxy)
 
     # 2) Nodes (coords, type, layer) -> node_info (with both raw+canon keys)
@@ -156,123 +156,150 @@ def _read(path: str, verbose: bool = False) -> str:
     except OSError as e:
         raise OSError(f"Failed to read SPD file '{path}': {e.strerror or e}") from e
 
-def _extract_board_polygons(text: str, *, tol: float = 1e-9) -> List[np.ndarray]:
+from typing import List
+import re
+import numpy as np
+
+def _extract_board_polygons(
+    text: str,
+    ground_net: str = "gnd",
+    power_net: str = "pwr",
+    *,
+    tol: float = 1e-9,
+    debug: bool = False,
+) -> List[np.ndarray]:
     """
     Parse .Shape blocks referenced by PatchSignal.. assignments and return a list
     of polygons (each as Nx2 array in meters). Boxes are expanded to rectangles.
-    If multiple polygons/boxes are identical within `tol`, the list is collapsed
-    to a single instance.
 
-    Robust board outline detection:
-      1) Collect candidate polygons/boxes from .Shape sections whose names are NOT per-layer pkg shapes
-         (ignore names containing '$' or 'pkgshape', case-insensitively).
-         Pick the candidate whose area is closest to the global node bounding-box area, and is at least
-         a fraction (default 50%) of that area. This avoids selecting tiny pkg boxes.
-      2) If none found, try CuttingBoundary polygon.
-      3) If still none, use bounding rectangle of all Node X/Y with small pad.
-    Returns [Nx2 array in meters] or [].
+    Filtering:
+      - If a shape body contains net tags like '::gnd+' or '::pwr1+', only shapes
+        whose net matches `ground_net` or `power_net` are kept.
+      - If no net tags are present (pure Box/Polygon), keep the shape (backward compatibility).
+
+    Returns
+      list[np.ndarray]: polygons/boxes in meters. If multiple identical outlines
+      are found, collapse to a single one.
     """
 
-    import re
-    import numpy as np
+    dprint = (print if debug else (lambda *a, **k: None))
 
-    # --- Primary extractor: identical to your original main.py ---
+    # --- 1) Capture ALL shape bodies up to .EndShape (robust to + continuations & extra lines like Circle...) ---
     shape_section = re.findall(
-        r"\.Shape\s+(ShapeSignal\d+)\n((?:(?:Box|Polygon).*?\n(?:\+.*?\n)?)?)",
-        text
-    )
-    patch_mapping = re.findall(
-        r"PatchSignal\d+\s+Shape\s*=\s*(ShapeSignal\d+)\s+Layer\s*=\s*(Signal\d+)",
-        text
-    )
-    sorted_patch_mapping = sorted(
-        patch_mapping, key=lambda x: int(x[1].replace("Signal", ""))
+        r"\.Shape\s+(\S+)\s*\n(.*?)(?=\.EndShape\b)",
+        text, flags=re.IGNORECASE | re.DOTALL
     )
     shape_dict = {name: body for name, body in shape_section}
+    dprint(f"[DBG] #shape bodies captured: {len(shape_section)}. Examples: {[n for n,_ in shape_section[:5]]}")
+
+    # --- 2) Map PatchSignal → Shape and keep layer order (SignalXX or Signal$NAME in top→bottom order) ---
+    patch_mapping = re.findall(
+        r"PatchSignal\S+\s+Shape\s*=\s*(\S+)\s+Layer\s*=\s*(Signal\S+)",
+        text
+    )
+
+    def _layer_index(sig_name: str) -> int:
+        # Try to extract trailing digits (Signal03 → 3). If absent (e.g., Signal$TOP), keep relative order by 0.
+        m = re.search(r"(\d+)$", sig_name.replace("Signal", ""))
+        return int(m.group(1)) if m else 0
+
+    sorted_patch_mapping = sorted(patch_mapping, key=lambda x: _layer_index(x[1]))
+    dprint(f"[DBG] #patch mappings: {len(sorted_patch_mapping)}. First few: {sorted_patch_mapping[:5]}")
 
     polygon_shapes: List[np.ndarray] = []
     box_shapes: List[np.ndarray] = []
 
-    for shape_name, _layer in sorted_patch_mapping:
-        shape = shape_dict.get(shape_name)
-        if shape is None:
+    # --- 3) Iterate shapes referenced by layers; filter by nets, then parse polygon/box coords ---
+    for shape_name, layer_name in sorted_patch_mapping:
+        body = shape_dict.get(shape_name)
+        if body is None:
+            dprint(f"[DBG] shape '{shape_name}' missing in shape_dict (skipping).")
             continue
 
-        if "Polygon" in shape:
-            poly_coords = re.findall(r"(-?[\d\.eE\+\-]+)\s*mm", shape)
-            if len(poly_coords) >= 6 and len(poly_coords) % 2 == 0:
-                coords = [(float(poly_coords[i]), float(poly_coords[i + 1]))
-                          for i in range(0, len(poly_coords), 2)]
+        # Find any net tags like '::gnd+' or '::pwr1-'
+        nets = re.findall(r"::([A-Za-z0-9_]+)[\+\-]", body)
+        nets_lower = {n.lower() for n in nets}
+        keep_shape = (not nets_lower) or (ground_net.lower() in nets_lower) or (power_net.lower() in nets_lower)
+
+        dprint(f"[DBG] shape='{shape_name}' layer='{layer_name}' nets={sorted(nets_lower)} keep={keep_shape}")
+
+        if not keep_shape:
+            continue
+
+        # --- Polygons ---
+        for poly_block in re.finditer(
+            r"Polygon[^\n]*"          
+            r"(?:\n\+\s*[^\n]*)*",    
+            body,
+            flags=re.IGNORECASE
+        ):
+            # Find net for this specific polygon
+            net_match = re.search(r"::([A-Za-z0-9_]+)[\+\-]", poly_block.group(0))
+            if net_match:
+                net = net_match.group(1).lower()
+                if net not in {ground_net.lower(), power_net.lower()}:
+                    dprint(f"[DBG]    skipping polygon with net={net}")
+                    continue
+
+            mm_tokens = re.findall(r"(-?[\d\.eE\+\-]+)\s*mm", poly_block.group(0))
+            if len(mm_tokens) >= 6 and len(mm_tokens) % 2 == 0:
+                coords = [(float(mm_tokens[i]), float(mm_tokens[i+1]))
+                        for i in range(0, len(mm_tokens), 2)]
                 if coords[0] != coords[-1]:
                     coords.append(coords[0])
-                polygon_shapes.append(np.array(coords, dtype=float) * 1e-3)
+                arr = np.array(coords, dtype=float) * 1e-3
+                polygon_shapes.append(arr)
+                dprint(f"[DBG]  -> polygon points: {arr.shape[0]}")
 
-        elif "Box" in shape:
-            m = re.search(
-                r"Box\d*[:\w+\-]*\s+(-?[\d\.eE\+\-]+)\s*mm\s+(-?[\d\.eE\+\-]+)\s*mm\s+([\d\.eE\+\-]+)\s*mm\s+([\d\.eE\+\-]+)\s*mm",
-                shape
-            )
-            if m:
-                x0, y0, w, h = map(float, m.groups())
-                x1, y1 = x0 + w, y0 + h
-                coords = np.array([[x0, y0], [x1, y0], [x1, y1],
-                                   [x0, y1], [x0, y0]], dtype=float) * 1e-3
-                box_shapes.append(coords)
+        
+        # --- Boxes ---
+        for m in re.finditer(
+            r"(Box[0-9A-Za-z:+\-]*)"       # full box token
+            r"(?:\:\:([A-Za-z0-9_]+)[\+\-])?" # optional ::net
+            r"\s+(-?[\d\.eE\+\-]+)\s*mm"   # x0
+            r"\s+(-?[\d\.eE\+\-]+)\s*mm"   # y0
+            r"\s+([\d\.eE\+\-]+)\s*mm"     # width
+            r"\s+([\d\.eE\+\-]+)\s*mm",    # height
+            body, flags=re.IGNORECASE
+        ):
+            _, net, x0, y0, w, h = m.groups()
+            if net:
+                net = net.lower()
+                if net not in {ground_net.lower(), power_net.lower()}:
+                    dprint(f"[DBG]    skipping box with net={net}")
+                    continue
 
-    # --- Fallback: if PatchSignal mapping or the tight .Shape regex missed things,
-    #     grab the full shape body up to the next dot-directive and parse it. ---
-    if not polygon_shapes and not box_shapes:
-        fallback_sections = re.findall(
-            r"\.Shape\s+(ShapeSignal\d+)\s*\n(.*?)(?=\n\.[A-Za-z]|\Z)",
-            text, flags=re.DOTALL
-        )
-        shape_dict_fb = {name: body for name, body in fallback_sections}
+            x0, y0, w, h = map(float, (x0, y0, w, h))
+            x1, y1 = x0 + w, y0 + h
+            arr = np.array(
+                [[x0, y0], [x1, y0], [x1, y1],
+                [x0, y1], [x0, y0]], dtype=float
+            ) * 1e-3
+            box_shapes.append(arr)
+            dprint(f"[DBG]  -> box parsed (w,h)=({w},{h}) -> 5 pts")
 
-        # If we *do* have a mapping, iterate by it; otherwise iterate by appearance
-        iter_keys = [k for k, _ in sorted_patch_mapping] if sorted_patch_mapping else list(shape_dict_fb.keys())
 
-        for shape_name in iter_keys:
-            body = shape_dict_fb.get(shape_name)
-            if not body:
-                continue
-
-            # polygons (collect any mm tokens)
-            if re.search(r"\bPolygon\b", body, flags=re.IGNORECASE):
-                tok = re.findall(r"(-?[\d\.eE\+\-]+)\s*mm", body)
-                if len(tok) >= 6 and len(tok) % 2 == 0:
-                    pts = [(float(tok[i]), float(tok[i + 1]))
-                           for i in range(0, len(tok), 2)]
-                    if pts[0] != pts[-1]:
-                        pts.append(pts[0])
-                    polygon_shapes.append(np.array(pts, dtype=float) * 1e-3)
-
-            # boxes (there can be multiple box lines)
-            for m in re.finditer(
-                r"Box\d*[:\w+\-]*\s+(-?[\d\.eE\+\-]+)\s*mm\s+(-?[\d\.eE\+\-]+)\s*mm\s+([\d\.eE\+\-]+)\s*mm\s+([\d\.eE\+\-]+)\s*mm",
-                body, flags=re.IGNORECASE
-            ):
-                x0, y0, w, h = map(float, m.groups())
-                x1, y1 = x0 + w, y0 + h
-                coords = np.array([[x0, y0], [x1, y0], [x1, y1],
-                                   [x0, y1], [x0, y0]], dtype=float) * 1e-3
-                box_shapes.append(coords)
-
-    # --- Collapse identicals ---
+    # --- 4) Collapse identicals (same behavior as before) ---
     def _collapse(shapes: List[np.ndarray]) -> List[np.ndarray]:
         if not shapes:
             return []
         first = shapes[0]
-        all_same = all(
-            (s.shape == first.shape) and np.allclose(s, first, atol=tol)
-             for s in shapes
-        )
+        all_same = all((s.shape == first.shape) and np.allclose(s, first, atol=tol) for s in shapes)
         return [first] if all_same else shapes
 
     if polygon_shapes:
-        return _collapse(polygon_shapes)
+        out = _collapse(polygon_shapes)
+        dprint(f"[DBG] polygons kept: {len(out)} (from {len(polygon_shapes)})")
+        return out
     if box_shapes:
-        return _collapse(box_shapes)
+        out = _collapse(box_shapes)
+        dprint(f"[DBG] boxes kept: {len(out)} (from {len(box_shapes)})")
+        return out
+
+    dprint("[DBG] no polygons/boxes matched filters.")
     return []
+
+
 
 
 def _extract_nodes(text: str, pwr_net: str = "pwr") -> dict:
