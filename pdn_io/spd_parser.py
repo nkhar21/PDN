@@ -47,9 +47,11 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
     log("\n[SPD] Nodes extracted:\n", len(node_info), "examples:\n", list(node_info.items())[:5])
 
     # 3) .Connect blocks -> ic_blocks, decap_blocks (preserving order)
-    ic_blocks, decap_blocks = _extract_connect_blocks(text)
+    #ic_blocks, decap_blocks = _extract_connect_blocks(text)
+    ic_blocks, decap_blocks = _extract_port_blocks(text)
     log("\n[SPD] IC blocks:", len(ic_blocks), "Decap blocks:", len(decap_blocks))
-    log("\nIC block example: ", ic_blocks[0] if ic_blocks else "N/A")
+    log("\nIC blocks: ", ic_blocks if ic_blocks else "N/A")
+    log("\nDecap blocks: ", decap_blocks if decap_blocks else "N/A")
 
     # 4) IC/Decap vias in Connect order (names + xy + type)
     _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks)
@@ -285,7 +287,11 @@ def _extract_board_polygons(
             return []
         first = shapes[0]
         all_same = all((s.shape == first.shape) and np.allclose(s, first, atol=tol) for s in shapes)
-        return [first] if all_same else shapes
+        if all_same:
+            dprint("[DBG]  collapsed")
+            return [first]
+        dprint("[DBG]  shapes returned (not collapsed)")
+        return shapes
 
     if polygon_shapes:
         out = _collapse(polygon_shapes)
@@ -302,17 +308,23 @@ def _extract_board_polygons(
 
 
 
-def _extract_nodes(text: str, pwr_net: str = "pwr") -> dict:
+def _extract_nodes(text: str, pwr_net: str = "pwr", gnd_net: str = "gnd") -> dict:
     """
-    Build node_info dict with ONLY canonical keys ('Node013' -> 'Node13'):
-      node_info['Node13'] = {'type': 1|0, 'x': mm, 'y': mm, 'layer': int}
-    Notes:
-      - 'type' is 1 for PWR, 0 otherwise (GND/empty)
-      - x, y are kept in millimeters (convert to meters at use-site)
-      - 'layer' is the integer from 'Signal##'
+    Build node_info dict with ONLY canonical keys ('Node013' -> 'Node13').
+
+    node_info['Node13'] = {
+        'type':  1 for PWR, 0 for GND,
+        'net':   raw net tag string (e.g. 'pwr1', 'gnd'),
+        'x':     x in mm,
+        'y':     y in mm,
+        'layer': integer layer number (from 'Signal##')
+    }
+
+    Only nodes whose tag exactly matches pwr_net or gnd_net are kept.
     """
+
     pattern = (
-        r"(Node\d+)"                  # raw node
+        r"(Node\d+)"                  # raw node name
         r"(?:::)?([A-Za-z0-9_]+)?"    # optional ::NET
         r"\s+X\s*=\s*([-\d\.eE\+]+)mm"
         r"\s+Y\s*=\s*([-\d\.eE\+]+)mm"
@@ -323,16 +335,25 @@ def _extract_nodes(text: str, pwr_net: str = "pwr") -> dict:
     node_info = {}
     for raw, tag, x_str, y_str, layer_str in node_lines:
         tag_l = (tag or "").lower()
-        is_power = tag_l.startswith(pwr_net)           # pwr, pwr1..pwrN
+
+        # Only accept nodes that match exactly
+        if tag_l == pwr_net.lower():
+            node_type = 1
+        elif tag_l == gnd_net.lower():
+            node_type = 0
+        else:
+            continue  # skip unrelated nets
+
         info = {
-            "type": 1 if is_power else 0,
-            "net":  tag_l if tag_l else None,        # 'gnd', 'pwr2', ...
-            "x": float(x_str), "y": float(y_str),    # mm
-            "layer": int(layer_str)                  # 1-based
+            "type": node_type,
+            "net": tag_l,
+            "x": float(x_str),
+            "y": float(y_str),
+            "layer": int(layer_str),
         }
         node_info[canon_node(raw)] = info
-    return node_info
 
+    return node_info
 
 def _extract_connect_blocks(text: str, ic_port_tag: str = "ic_port", decap_port_tag: str = "decap_port") -> tuple:
     """
@@ -369,6 +390,65 @@ def _extract_connect_blocks(text: str, ic_port_tag: str = "ic_port", decap_port_
     ]
 
     return ic_blocks, decap_blocks
+
+import re
+
+def _extract_port_blocks(
+    text: str, ic_port_tag: str = "ic_port", decap_port_tag: str = "decap_port", pwr_net: str = "pwr"
+) -> tuple:
+    """
+    Return (ic_blocks, decap_blocks) preserving file order, based on *Port description lines*.
+
+    Each returned block is the body lines for one Port (PositiveTerminal, NegativeTerminal, etc.).
+    Only ports that reference the given pwr_net (e.g. 'pwr', 'pwr1') are returned.
+    """
+
+    # Extract the entire .Port ... .EndPort section
+    port_match = re.search(
+        r"\*+\s*Port description lines\b(.*?)(?:\*+\s*Extraction|\Z)",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if not port_match:
+        return [], []
+
+    port_section = port_match.group(1)
+
+    # Split into individual Port definitions
+    # Match "PortX_name::tag ..." plus its continuation lines until the next "PortY_" or ".EndPort"
+    port_defs = re.findall(
+        r"(?mi)^(Port\d+[^\n]*)(?:\n[+].*)*",
+        port_section,
+    )
+
+    ic_blocks, decap_blocks = [], []
+
+    for match in re.finditer(
+        r"(?mi)(Port\d+[^\n]*)(?:\n[+].*)*",
+        port_section,
+    ):
+        port_block = match.group(0)
+
+        # Check if PositiveTerminal contains the requested pwr_net
+        if not re.search(rf"\b{pwr_net}\b", port_block, flags=re.IGNORECASE):
+            continue
+
+        header_line = match.group(1)
+
+        if re.search(ic_port_tag, header_line, flags=re.IGNORECASE):
+            ic_blocks.append(port_block)
+        elif re.search(decap_port_tag, header_line, flags=re.IGNORECASE):
+            decap_blocks.append(port_block)
+        else:
+            # fallback: classify by "decap" or "ic" anywhere in block
+            if re.search("decap", port_block, flags=re.IGNORECASE):
+                decap_blocks.append(port_block)
+            elif re.search("ic", port_block, flags=re.IGNORECASE):
+                ic_blocks.append(port_block)
+
+    return ic_blocks, decap_blocks
+
+
 
 def _extract_via_lines(text: str):
     """
@@ -462,64 +542,94 @@ def _extract_start_stop_type(via_lines, node_info, ic_blocks, decap_blocks):
 
     return start_layers, stop_layers, via_type
 
-def _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks, snap_dec=7):
+def _fill_ic_decap_vias(
+    brd,
+    node_info: dict,
+    ic_blocks: list[str],
+    decap_blocks: list[str],
+    pwr_net: str = "pwr",
+    gnd_net: str = "gnd",
+    snap_dec: int = 7,
+):
     """
-    Populate:
-        brd.ic_node_names, brd.ic_via_xy, brd.ic_via_type
-        brd.decap_node_names, brd.decap_via_xy, brd.decap_via_type
+    Works with new .Port blocks:
+      PortX_...::net
+      + PositiveTerminal $Package.Node... [possibly many, over wrapped '+' lines]
+      + NegativeTerminal $Package.Node... [possibly many, over wrapped '+' lines]
 
-    Behavior:
-      - Preserves the exact .Connect order used in your main.py.
-      - Canonicalizes node names (e.g., 'Node013' -> 'Node13').
-      - Uses both '1 ...' (plus) and '2 ...' (minus) lines in sequence.
-      - Converts coordinates from mm to meters and rounds to `snap_dec` decimals.
-      - Silently skips entries whose node isn't found in node_info.
+    Populates:
+        brd.ic_node_names,   brd.ic_via_xy,   brd.ic_via_type
+        brd.decap_node_names,brd.decap_via_xy,brd.decap_via_type
+
+    type = 1 if node_info[n]["net"] == pwr_net (case-insensitive)
+          = 0 if node_info[n]["net"] == gnd_net
+    Other nets are ignored.
     """
-    import re
-    import numpy as np
 
-    def _collect_from_blocks(blocks):
+    POS_PAT = re.compile(r"^\+?\s*PositiveTerminal\b", re.IGNORECASE)
+    NEG_PAT = re.compile(r"^\+?\s*NegativeTerminal\b", re.IGNORECASE)
+    NODE_PAT = re.compile(r"\$Package\.(Node\d+)", re.IGNORECASE)
+
+    pwr_net_l = pwr_net.lower()
+    gnd_net_l = gnd_net.lower()
+
+    def _collect_from_blocks(blocks: list[str]):
         names_ordered, xy_list, type_list = [], [], []
+
         for blk in blocks:
-            lines = [ln.strip() for ln in blk.strip().splitlines()]
-            plus_nodes = []
-            minus_nodes = []
-            for ln in lines:
-                if ln.startswith("1") or ln.startswith("2"):
-                    m = re.search(r"\$Package\.(Node\d+)", ln)
-                    if not m:
+            mode = None  # 'pos' or 'neg'
+            # IMPORTANT: do NOT strip '+'; only trim trailing newline/spaces
+            for raw_ln in blk.splitlines():
+                ln = raw_ln.rstrip()
+
+                # Switch mode when we hit a terminal header
+                if POS_PAT.search(ln):
+                    mode = "pos"
+                elif NEG_PAT.search(ln):
+                    mode = "neg"
+
+                # Only extract nodes when we are inside a terminal section
+                if mode is None:
+                    continue
+
+                # Any continuation line that belongs to current terminal can have nodes
+                nodes = NODE_PAT.findall(ln)
+                if not nodes:
+                    continue
+
+                for node_raw in nodes:
+                    n = canon_node(node_raw)
+                    info = node_info.get(n)
+                    if not info:
                         continue
-                    node = canon_node(m.group(1))
-                    if ln.startswith("1"):
-                        plus_nodes.append(node)
-                    else:
-                        minus_nodes.append(node)
 
-            # Keep the same order as your new main: all plus first, then minus
-            for n in plus_nodes + minus_nodes:
-                if n in node_info:
-                    info = node_info[n]
+                    net_l = (info.get("net") or "").lower()
+                    if net_l == pwr_net_l:
+                        t = 1
+                    elif net_l == gnd_net_l:
+                        t = 0
+                    else:
+                        # Node is on a different net we don't care about
+                        continue
+
                     names_ordered.append(n)
-                    xy_list.append([info["x"] * 1e-3, info["y"] * 1e-3])  # mm -> m
-                    # b5 fix
-                    if info["net"] == "gnd":
-                        type_list.append(0)
-                    elif info["net"] and info["net"].startswith("pwr"):
-                        type_list.append(1)
-                    else:
-                        type_list.append(0)  # default fallback
+                    xy_list.append([info["x"] * 1e-3, info["y"] * 1e-3])  # mm → m
+                    type_list.append(t)
 
-        if len(xy_list) == 0:
+        if xy_list:
+            xy_arr = np.round(np.asarray(xy_list, dtype=float), snap_dec)
+            type_arr = np.asarray(type_list, dtype=int)
+        else:
             xy_arr = np.zeros((0, 2), dtype=float)
             type_arr = np.zeros((0,), dtype=int)
-        else:
-            xy_arr = np.round(np.array(xy_list, dtype=float), snap_dec)
-            type_arr = np.array(type_list, dtype=int)
+
         return names_ordered, xy_arr, type_arr
 
+    # Parse IC and decap blocks (new .Port format)
     ic_names, ic_xy, ic_type = _collect_from_blocks(ic_blocks)
     decap_names, decap_xy, decap_type = _collect_from_blocks(decap_blocks)
 
+    # Assign to board
     brd.ic_node_names = ic_names
     brd.ic_via_xy = ic_xy
     brd.ic_via_type = ic_type
@@ -527,10 +637,10 @@ def _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks, snap_dec=7):
     brd.decap_node_names = decap_names
     brd.decap_via_xy = decap_xy
     brd.decap_via_type = decap_type
-    # Debug summary for IC via types
-    if len(ic_type):
-        print(f"[SPD_MULTI][IC_DBG] total={len(ic_type)}, "
-            f"type0={np.sum(ic_type == 0)}, type1={np.sum(ic_type == 1)}")
+
+    # Debug
+    if ic_type.size:
+        print(f"[SPD_MULTI][IC_DBG] total={ic_type.size}, type0={np.sum(ic_type==0)}, type1={np.sum(ic_type==1)}")
     
 
 def _fill_buried_vias(brd, via_lines, node_info):
