@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pathlib
 
 from copy import deepcopy
-from code_pdn_AH import PDN
+from BEM_AC_NVM_PDN import PDN
 import os
 import skrf as rf
 from input_AH import input_path, stackup_path, touchstone_path

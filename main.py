@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pathlib
 
-from code_pdn_AH import PDN
+from BEM_AC_NVM_PDN import PDN
 import time
 import os
 import skrf as rf
@@ -23,7 +23,9 @@ def gen_brd_data(
     Build board state and compute Z using external parsers for SPD and stackup/layer-type.
     """
     # --- 1) Parse SPD (board shapes, vias, layers, etc.) ---
-    result = parse_spd(brd, spd_path, verbose=True)
+    result = parse_spd(brd, spd_path, ground_net="gnd", power_net="pwr", 
+                       ic_port_tag="ic_port", decap_port_tag="decap_port",
+                       verbose=True)
 
     # Accept new 9/11 tuple (stackup included)
     if len(result) == 9:
@@ -42,9 +44,6 @@ def gen_brd_data(
         raise ValueError(f"Unexpected return count from parse_spd: {len(result)}")
 
     # --- 2) Board boundary segments (unchanged logic) ---
-    bxy = np.array([np.round(np.array(item), 6) for item in bxy], dtype=object)
-    brd.bxy = bxy
-
     brd.sxy = np.concatenate([brd.seg_bd_node(single_bxy, d) for single_bxy in brd.bxy], axis=0)
     brd.sxy_index_ranges = []
     offset = 0

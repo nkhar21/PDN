@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import pathlib
 
 from copy import deepcopy
-from code_pdn_AH import PDN
-from RES1_AH import main_res
+from BEM_AC_NVM_PDN import PDN
+from CIM_DC_RES import main_res
 import time
 import os
 import skrf as rf

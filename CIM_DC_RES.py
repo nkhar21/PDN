@@ -2,6 +2,7 @@ import numpy as np
 from math import sqrt, pi, sin, cos, log
 from copy import deepcopy
 import time
+from itertools import combinations
 
 
 def seg_bd_node(bxy_b, dl):
@@ -66,6 +67,7 @@ def seg_bd_node(bxy_b, dl):
             sxy[s, 3] = bxy_b[i + 1, 1]
             s += 1
     return sxy
+
 
 def segment_port(x0,y0,r,n):
 # Define a function for port segmentation
@@ -170,9 +172,6 @@ def planesresistance(bxy_b, via_xy_b, via_r, d):
             else:
                 rb[i, j] = 1 / (np.sum(G[i, :]))
     return rb
-
-import numpy as np
-from itertools import combinations
 
 
 def org_resistance(stackup, via_type, start_layer, stop_layer, via_xy, decap_via_type, decap_via_xy, decap_via_loc, ic_via_xy, ic_via_type, ic_via_loc):

@@ -7,6 +7,8 @@ import os
 
 # ---- public helpers ---------------------------------------------------------
 
+BRD_SNAP_DEC = 6
+
 def canon_node(name: str) -> str:
     """
     Normalize Node labels like 'Node01'/'Node001' → 'Node1'.
@@ -14,7 +16,8 @@ def canon_node(name: str) -> str:
     m = re.match(r"Node0*([1-9]\d*)$", name, flags=re.IGNORECASE)
     return f"Node{m.group(1)}" if m else name
 
-def parse_spd(brd, spd_path: str, verbose: bool = False):
+def parse_spd(brd , spd_path: str, ground_net: str = "gnd", power_net: str = "pwr", 
+              ic_port_tag="ic_port", decap_port_tag="decap_port", verbose: bool = False):
     """
     Parse a PowerSI .spd file and populate `brd` with:
       - brd.bxy: list[np.ndarray(N,2)] board polygon(s) in meters
@@ -23,6 +26,7 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
       - brd.start_layers, brd.stop_layers, brd.via_type   (0-based)
       - brd.buried_via_xy, brd.buried_via_type  (optional, may be empty)
       - brd.top_port_num, brd.bot_port_num  (object arrays of lists)
+    
 
     Returns (matching your current SPD tuple):
         (
@@ -39,35 +43,34 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
     text = _read(spd_path, verbose=verbose)
 
     # 1) Board shapes -> brd.bxy
-    brd.bxy = _extract_board_polygons(text, debug=verbose)
+    bxy = _extract_board_polygons(text, ground_net=ground_net, power_net=power_net, debug=verbose)
+    bxy = np.array([np.round(np.array(item), BRD_SNAP_DEC) for item in bxy], dtype=object)
+    brd.bxy = bxy
     log("\n[SPD] Board polygons extracted:\n", brd.bxy)
 
     # 2) Nodes (coords, type, layer) -> node_info (with both raw+canon keys)
-    node_info = _extract_nodes(text)
+    node_info = _extract_nodes(text, pwr_net=power_net, gnd_net=ground_net)
     log("\n[SPD] Nodes extracted:\n", len(node_info), "examples:\n", list(node_info.items())[:5])
 
     # 3) .Connect blocks -> ic_blocks, decap_blocks (preserving order)
     #ic_blocks, decap_blocks = _extract_connect_blocks(text)
-    ic_blocks, decap_blocks = _extract_port_blocks(text)
+    ic_blocks, decap_blocks = _extract_port_blocks(text, ic_port_tag=ic_port_tag, decap_port_tag=decap_port_tag, pwr_net=power_net)
     log("\n[SPD] IC blocks:", len(ic_blocks), "Decap blocks:", len(decap_blocks))
     log("\nIC blocks: ", ic_blocks if ic_blocks else "N/A")
     log("\nDecap blocks: ", decap_blocks if decap_blocks else "N/A")
 
     # 4) IC/Decap vias in Connect order (names + xy + type)
-    _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks)
+    _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks, pwr_net=power_net, gnd_net=ground_net)
     log("\n[SPD] IC vias:", len(getattr(brd, 'ic_node_names', [])),
         "\nDecap vias:", len(getattr(brd, 'decap_node_names', [])))
 
     # 5) All via pairs (upper/lower nodes), canonicalized
-    via_lines = _extract_via_lines(text)
+    via_lines = _extract_via_lines(text, pwr_net=power_net, gnd_net=ground_net)
     log("[SPD] Via lines extracted:\n", len(via_lines), "examples:\n", via_lines[:5])
 
     # 6) Start/stop/type arrays for ALL vias (IC+DECAP order as in Connect)
-    sl, tl, vt = _extract_start_stop_type(via_lines, node_info, ic_blocks, decap_blocks)
-    brd.start_layers = np.asarray(sl, np.int32) - 1
-    brd.stop_layers  = np.asarray(tl, np.int32) - 1
-    brd.via_type     = np.asarray(vt, np.int32)
-    log("[SPD] Start/stop/type arrays:\n", brd.start_layers, brd.stop_layers, brd.via_type)
+    _extract_start_stop_type(brd, via_lines, node_info, ic_blocks, decap_blocks)
+    log("[SPD] Start/stop/type via arrays:\n", brd.start_layers, brd.stop_layers, brd.via_type)
     
 
     # 7) Buried vias (optional)
@@ -81,44 +84,31 @@ def parse_spd(brd, spd_path: str, verbose: bool = False):
 
     # 8) Via cavity location flags from node layers (top=1, bottom=0)
     _fill_via_locs(brd, node_info)
-    log("[SPD] IC via locs:\n", getattr(brd, 'ic_via_loc', "N/A"))
-    log("[SPD] Decap via locs:\n", getattr(brd, 'decap_via_loc', "N/A"))
+    log("[SPD] IC via locs: ", getattr(brd, 'ic_via_loc', "N/A"))
+    log("[SPD] Decap via locs: ", getattr(brd, 'decap_via_loc', "N/A"))
 
+    # TO INVESTIGATE / FUTURE WORK:
     # 9) Exact per-via → (port, cavity) map for SPD inputs
-    _fill_port_cavity_maps(brd, ic_blocks, decap_blocks)
-    log("[SPD] IC via port/cavity maps:\n", getattr(brd, 'top_port_num', "N/A"))
-    log("[SPD] Decap via port/cavity maps:\n", getattr(brd, 'bot_port_num', "N/A"))
+    # _fill_port_cavity_maps(brd, ic_blocks, decap_blocks)
+    # log("[SPD] IC via port/cavity maps:\n", getattr(brd, 'top_port_num', "N/A"))
+    # log("[SPD] Decap via port/cavity maps:\n", getattr(brd, 'bot_port_num', "N/A"))
 
-    # --- (3) Assign/snap/cast moved here ---
-    SNAP_DEC = 7
-    brd.ic_via_xy     = _snap(brd.ic_via_xy, SNAP_DEC)
-    brd.decap_via_xy  = _snap(brd.decap_via_xy, SNAP_DEC)
-    if getattr(brd, "buried_via_xy", None) is not None and np.size(brd.buried_via_xy):
-        brd.buried_via_xy = _snap(brd.buried_via_xy, SNAP_DEC)
+    # 9) Global guards: Via normalization + Via de-duplication for all vias
+    _normalize_via_coords(brd, snap_dec=7)
+    _normalize_via_types(brd, dtype=np.int32)
 
-    brd.ic_via_type    = np.asarray(brd.ic_via_type,    np.int32)
-    brd.decap_via_type = np.asarray(brd.decap_via_type, np.int32)
-    if getattr(brd, "buried_via_type", None) is not None:
-        brd.buried_via_type = np.asarray(brd.buried_via_type, np.int32)
-
-    # --- (4) Global guards: IC vs Decap vs Buried de-duplication ---
-    pre_unique = len(_to_keys(brd.ic_via_xy) | _to_keys(brd.decap_via_xy) | _to_keys(getattr(brd,"buried_via_xy", None)))
-    _dedupe_across_groups(brd, eps=1e-7, rdec=9)
-    post_unique = len(_to_keys(brd.ic_via_xy) | _to_keys(brd.decap_via_xy) | _to_keys(getattr(brd,"buried_via_xy", None)))
-    if post_unique != pre_unique:
-        log(f"[SPD] Dedupe adjusted {pre_unique - post_unique} duplicate(s) (eps=1e-7 m)")
+    pre_u, post_u = _dedupe_and_count(brd, eps=1e-7, rdec=9)
+    log(f"[SPD] Dedupe adjusted {post_u - pre_u} duplicate(s) (eps=1e-7 m)")
 
     # 10) Infer stackup mask (0=GND-return layer, 1=PWR layer)
     brd.stackup = _infer_stackup_mask(text, node_info=node_info)
     log(f"[SPD] Stackup mask: len={len(brd.stackup)}  PWR={int(np.sum(brd.stackup))}  GND={int(len(brd.stackup)-np.sum(brd.stackup))}")
+    log(f"[SPD] Stackup mask (full): {brd.stackup}")
 
     # 11) Build return tuple compatible with current main.py
-    ret = [
-        brd.bxy,
-        brd.ic_via_xy, brd.ic_via_type,
-        brd.start_layers, brd.stop_layers, brd.via_type,
-        brd.decap_via_xy, brd.decap_via_type,
-        brd.stackup,
+    ret = [ brd.bxy, brd.ic_via_xy, brd.ic_via_type,
+            brd.start_layers, brd.stop_layers, brd.via_type,
+            brd.decap_via_xy, brd.decap_via_type, brd.stackup,
     ]
     if getattr(brd, "buried_via_xy", None) is not None and brd.buried_via_xy.size > 0:
         ret += [brd.buried_via_xy, brd.buried_via_type]
@@ -188,7 +178,7 @@ def _extract_board_polygons(
         text, flags=re.IGNORECASE | re.DOTALL
     )
     shape_dict = {name: body for name, body in shape_section}
-    dprint(f"[DBG] #shape bodies captured: {len(shape_section)}. Examples: {[n for n,_ in shape_section[:5]]}")
+    dprint(f"[SPD] #shape bodies captured: {len(shape_section)}. Examples: {[n for n,_ in shape_section[:5]]}")
 
     # --- 2) Map PatchSignal → Shape and keep layer order (SignalXX or Signal$NAME in top→bottom order) ---
     patch_mapping = re.findall(
@@ -202,7 +192,7 @@ def _extract_board_polygons(
         return int(m.group(1)) if m else 0
 
     sorted_patch_mapping = sorted(patch_mapping, key=lambda x: _layer_index(x[1]))
-    dprint(f"[DBG] #patch mappings: {len(sorted_patch_mapping)}. First few: {sorted_patch_mapping[:5]}")
+    dprint(f"[SPD] #patch mappings: {len(sorted_patch_mapping)}. First few: {sorted_patch_mapping[:5]}")
 
     polygon_shapes: List[np.ndarray] = []
     box_shapes: List[np.ndarray] = []
@@ -211,7 +201,7 @@ def _extract_board_polygons(
     for shape_name, layer_name in sorted_patch_mapping:
         body = shape_dict.get(shape_name)
         if body is None:
-            dprint(f"[DBG] shape '{shape_name}' missing in shape_dict (skipping).")
+            dprint(f"[SPD] shape '{shape_name}' missing in shape_dict (skipping).")
             continue
 
         # Find any net tags like '::gnd+' or '::pwr1-'
@@ -219,7 +209,7 @@ def _extract_board_polygons(
         nets_lower = {n.lower() for n in nets}
         keep_shape = (not nets_lower) or (ground_net.lower() in nets_lower) or (power_net.lower() in nets_lower)
 
-        dprint(f"[DBG] shape='{shape_name}' layer='{layer_name}' nets={sorted(nets_lower)} keep={keep_shape}")
+        dprint(f"[SPD] shape='{shape_name}' layer='{layer_name}' nets={sorted(nets_lower)} keep={keep_shape}")
 
         if not keep_shape:
             continue
@@ -236,7 +226,7 @@ def _extract_board_polygons(
             if net_match:
                 net = net_match.group(1).lower()
                 if net not in {ground_net.lower(), power_net.lower()}:
-                    dprint(f"[DBG]    skipping polygon with net={net}")
+                    dprint(f"[SPD]    skipping polygon with net={net}")
                     continue
 
             mm_tokens = re.findall(r"(-?[\d\.eE\+\-]+)\s*mm", poly_block.group(0))
@@ -247,7 +237,7 @@ def _extract_board_polygons(
                     coords.append(coords[0])
                 arr = np.array(coords, dtype=float) * 1e-3
                 polygon_shapes.append(arr)
-                dprint(f"[DBG]  -> polygon points: {arr.shape[0]}")
+                dprint(f"[SPD]  -> polygon points: {arr.shape[0]}")
 
         
         # --- Boxes ---
@@ -264,7 +254,7 @@ def _extract_board_polygons(
             if net:
                 net = net.lower()
                 if net not in {ground_net.lower(), power_net.lower()}:
-                    dprint(f"[DBG]    skipping box with net={net}")
+                    dprint(f"[SPD]    skipping box with net={net}")
                     continue
 
             x0, y0, w, h = map(float, (x0, y0, w, h))
@@ -274,7 +264,7 @@ def _extract_board_polygons(
                 [x0, y1], [x0, y0]], dtype=float
             ) * 1e-3
             box_shapes.append(arr)
-            dprint(f"[DBG]  -> box parsed (w,h)=({w},{h}) -> 5 pts")
+            dprint(f"[SPD]  -> box parsed (w,h)=({w},{h}) -> 5 pts")
 
 
     # --- 4) Collapse identicals (same behavior as before) ---
@@ -284,21 +274,21 @@ def _extract_board_polygons(
         first = shapes[0]
         all_same = all((s.shape == first.shape) and np.allclose(s, first, atol=tol) for s in shapes)
         if all_same:
-            dprint("[DBG]  collapsed")
+            dprint("[SPD]  collapsed")
             return [first]
-        dprint("[DBG]  shapes returned (not collapsed)")
+        dprint("[SPD]  shapes returned (not collapsed)")
         return shapes
 
     if polygon_shapes:
         out = _collapse(polygon_shapes)
-        dprint(f"[DBG] polygons kept: {len(out)} (from {len(polygon_shapes)})")
+        dprint(f"[SPD] polygons kept: {len(out)} (from {len(polygon_shapes)})")
         return out
     if box_shapes:
         out = _collapse(box_shapes)
-        dprint(f"[DBG] boxes kept: {len(out)} (from {len(box_shapes)})")
+        dprint(f"[SPD] boxes kept: {len(out)} (from {len(box_shapes)})")
         return out
 
-    dprint("[DBG] no polygons/boxes matched filters.")
+    dprint("[SPD] no polygons/boxes matched filters.")
     return []
 
 
@@ -492,7 +482,7 @@ def _extract_via_lines(text: str, pwr_net: str = "pwr", gnd_net: str = "gnd"):
 
     return out
 
-def _extract_start_stop_type(via_lines, node_info, ic_blocks, decap_blocks):
+def _extract_start_stop_type(brd, via_lines, node_info, ic_blocks, decap_blocks):
     """
     Build (start_layers, stop_layers, via_type) using .Port blocks.
 
@@ -581,6 +571,10 @@ def _extract_start_stop_type(via_lines, node_info, ic_blocks, decap_blocks):
     start_layers = ic_s + dc_s
     stop_layers  = ic_t + dc_t
     via_type     = ic_v + dc_v
+
+    brd.start_layers = np.asarray(start_layers, np.int32) - 1
+    brd.stop_layers  = np.asarray(stop_layers, np.int32) - 1
+    brd.via_type     = np.asarray(via_type, np.int32)
 
     return start_layers, stop_layers, via_type
 
@@ -691,7 +685,7 @@ def _fill_buried_vias(brd, via_lines, node_info):
     Compute brd.buried_via_xy, brd.buried_via_type, and merge their
     start/stop/type into brd.start_layers, brd.stop_layers, brd.via_type.
 
-    Rules (mirrors your main.py behavior):
+    Rules:
       - A via is considered *buried* if neither endpoint is on the min or max layer.
       - Midpoint key: ((x_u + x_l)/2, (y_u + y_l)/2) in mm, rounded to 6 decimals.
       - Each unique midpoint produces one buried via with:
@@ -768,18 +762,18 @@ def _fill_buried_vias(brd, via_lines, node_info):
 
 def _fill_via_locs(brd, node_info):
     """
-    Set brd.ic_via_loc and brd.decap_via_loc using each via's node layer:
+    Set brd.ic_via_loc and brd.decap_via_loc from node layers:
       top layer -> 1, bottom layer -> 0.
-    For nodes that are on neither extreme, we follow your current behavior and
-    treat them as top (1).
+    STRICT: if a node is on neither top nor bottom, raise ValueError.
     """
+    # Empty holders if names absent
     if not getattr(brd, "ic_node_names", None):
         brd.ic_via_loc = np.array([], dtype=int)
     if not getattr(brd, "decap_node_names", None):
         brd.decap_via_loc = np.array([], dtype=int)
 
+    # No node_info -> mark everything as top and bail
     if not node_info:
-        # Fallback if node_info is missing; mark everything as top.
         if getattr(brd, "ic_via_xy", None) is not None:
             brd.ic_via_loc = np.ones(len(brd.ic_via_xy), dtype=int)
         if getattr(brd, "decap_via_xy", None) is not None:
@@ -787,28 +781,52 @@ def _fill_via_locs(brd, node_info):
         return
 
     layers = [v["layer"] for v in node_info.values()]
-    top_layer = min(layers) if layers else 1
-    bot_layer = max(layers) if layers else top_layer
+    if not layers:
+        # No layer data at all -> mark top and bail
+        if getattr(brd, "ic_via_xy", None) is not None:
+            brd.ic_via_loc = np.ones(len(brd.ic_via_xy), dtype=int)
+        if getattr(brd, "decap_via_xy", None) is not None:
+            brd.decap_via_loc = np.ones(len(brd.decap_via_xy), dtype=int)
+        return
 
-    # IC locations (by node name)
+    top_layer = min(layers)
+    bot_layer = max(layers)
+
+    offenders = []
+
+    # IC locations
     ic_locs = []
     for n in getattr(brd, "ic_node_names", []):
-        lyr = node_info.get(n, {}).get("layer", top_layer)
-        # same logic as in your main.py: if neither top nor bottom, default to top (1)
-        ic_locs.append(1 if lyr == top_layer else (0 if lyr == bot_layer else 1))
+        lyr = node_info.get(n, {}).get("layer", top_layer)  # missing -> treat as top
+        if lyr == top_layer:
+            ic_locs.append(1)
+        elif lyr == bot_layer:
+            ic_locs.append(0)
+        else:
+            offenders.append(("IC", n, lyr))
     brd.ic_via_loc = np.array(ic_locs, dtype=int) if ic_locs else np.array([], dtype=int)
 
-    # Decap locations (by node name)
+    # Decap locations
     dec_locs = []
     for n in getattr(brd, "decap_node_names", []):
-        lyr = node_info.get(n, {}).get("layer", top_layer)
-        dec_locs.append(1 if lyr == top_layer else (0 if lyr == bot_layer else 1))
+        lyr = node_info.get(n, {}).get("layer", top_layer)  # missing -> treat as top
+        if lyr == top_layer:
+            dec_locs.append(1)
+        elif lyr == bot_layer:
+            dec_locs.append(0)
+        else:
+            offenders.append(("DECAP", n, lyr))
     brd.decap_via_loc = np.array(dec_locs, dtype=int) if dec_locs else np.array([], dtype=int)
+
+    if offenders:
+        detail = ", ".join(f"{grp}:{name}(L{lyr})" for grp, name, lyr in offenders)
+        raise ValueError(
+            f"[SPD] Via location error: nodes on interior layers (expected top={top_layer}, bottom={bot_layer}): {detail}"
+        )
 
 def _fill_port_cavity_maps(brd, ic_blocks, decap_blocks):
     """
-    Build brd.top_port_num / brd.bot_port_num (dtype=object) exactly like your
-    working main.py:
+    Build brd.top_port_num / brd.bot_port_num (dtype=object):
 
       - Total via order in PDN.calc_z_fast is [IC] + [DECAP] + ([BURIED] if any).
       - IC vias map to port 0, assigned to top/bottom by brd.ic_via_loc.
@@ -872,60 +890,91 @@ def _fill_port_cavity_maps(brd, ic_blocks, decap_blocks):
     brd.bot_port_num = np.array(bot_port_num, dtype=object)
 
 
-def _infer_stackup_mask(text: str, node_info=None) -> np.ndarray:
+def _infer_stackup_mask(text: str, pwr_net: str = "pwr", gnd_net: str = "gnd", node_info=None) -> np.ndarray:
     """
-    Return an int mask over Signal layers:
-       0 -> GND/return layer, 1 -> PWR layer
-    Preferred: use PatchSignal->Shape mapping, scanning shape body for '::pwr+' or '::gnd+'.
-    Fallback: if shapes are unavailable, mark a layer as PWR if any node on that layer is type==1.
+    Build a per-Signal-layer mask for a specific power/ground net pair.
+      0 -> GND/return layer
+      1 -> layer that contains EXACTLY the requested `pwr_net`
+
+    Preference order:
+      1) Use PatchSignal -> Shape mapping and look inside each shape body
+         for '::<NET>' (exact match, case-insensitive).
+      2) If *no* Patch/Shape info is found, fall back to node_info:
+         mark a layer 1 if any node on that layer has type==1 (i.e., matches pwr_net);
+         otherwise 0.
+
+    Notes:
+      - Exact net match (e.g., pwr vs pwr1): a layer is 1 only if '::pwr' is present,
+        and not just '::pwr1' etc.
+      - '+' after the tag is allowed but not required (matches '::pwr' and '::pwr+').
+      - Layers with neither tag default to 0 (treated as return).
     """
-    # map '.Shape <name> ... .EndShape' bodies
+    # 1) Gather all .Shape blocks
     shape_blocks = dict(re.findall(r"(?si)\.Shape\s+(\S+)\s*\n(.*?)(?:\.EndShape\b)", text))
-    # map 'PatchSignalN Shape=<name> Layer=SignalNN' in file order
+
+    # 2) Map PatchSignal -> (shape_name, SignalNN)
+    #    Multiple entries per layer are possible.
     patch = re.findall(r"(?mi)PatchSignal\d+\s+Shape\s*=\s*(\S+)\s+Layer\s*=\s*(Signal\d+)", text)
 
-    layer_to_type = {}
+    # Regexes for exact tag matches inside a shape body
+    pwr_re = re.compile(rf"::\s*{re.escape(pwr_net)}(?:\b|\+)", re.IGNORECASE)
+    gnd_re = re.compile(rf"::\s*{re.escape(gnd_net)}(?:\b|\+)", re.IGNORECASE)
+
+    # Accumulate per-layer evidence (True if the requested pwr_net is present on that layer)
+    layer_has_pwr = {}       # idx -> bool
     max_sig = 0
+
     for shape_name, sig in patch:
         try:
             idx = int(re.sub(r"\D", "", sig))
         except Exception:
             continue
-        body = shape_blocks.get(shape_name, "")
-        s = body.lower()
-        has_pwr = bool(re.search(r"::\s*pwr\w*\+", s))
-        has_gnd = bool(re.search(r"::\s*gnd\w*\+", s))
-        # Decide 0/1; if mixed or ambiguous, prefer PWR (you can warn here if you like)
-        if has_pwr and not has_gnd:
-            v = 1
-        elif has_gnd and not has_pwr:
-            v = 0
-        elif has_pwr and has_gnd:
-            v = 1  # mixed pour (rare for your current boards) -> treat as PWR for mask
-        else:
-            v = 0  # default to GND if no explicit tag is found
-        layer_to_type[idx] = v
         max_sig = max(max_sig, idx)
 
-    # Fallback using node_info if we found nothing in shapes
-    if not layer_to_type:
-        if node_info is None:
-            node_info = _extract_nodes(text)
-        for _, inf in node_info.items():
-            idx = int(inf["layer"])
-            layer_to_type[idx] = max(layer_to_type.get(idx, 0), int(inf["type"]))
-            max_sig = max(max_sig, idx)
+        body = shape_blocks.get(shape_name, "")
+        s = body  # keep original case for robustness; regex is case-insensitive
 
-    # Build dense 1..max_sig mask (1-based -> 0-based array)
-    mask = np.zeros(max_sig, dtype=int)
+        # If *this* shape carries the exact pwr_net, mark layer as True.
+        if pwr_re.search(s):
+            layer_has_pwr[idx] = True
+        else:
+            # Ensure key exists; if already True from a previous shape, keep it.
+            layer_has_pwr.setdefault(idx, False)
+
+    # 3) If NO Patch/Shape info was found at all, fall back to nodes
+    if not layer_has_pwr:
+        if node_info is None:
+            # Optional: only if you want to allow internal extraction
+            node_info = _extract_nodes(text, pwr_net=pwr_net, gnd_net=gnd_net)
+
+        # node_info contains only the requested nets in your pipeline.
+        # Mark layer 1 if any node on that layer has type==1 (pwr), else 0.
+        max_sig = 0
+        layer_to_type = {}
+        for _, inf in (node_info or {}).items():
+            idx = int(inf["layer"])
+            max_sig = max(max_sig, idx)
+            # inf['type'] is 1 for pwr_net, 0 for gnd_net
+            layer_to_type[idx] = max(layer_to_type.get(idx, 0), int(inf.get("type", 0)))
+
+        # Dense 1..max_sig mask
+        mask = np.zeros(max_sig if max_sig > 0 else 1, dtype=int)
+        for i in range(1, max_sig + 1):
+            mask[i - 1] = int(layer_to_type.get(i, 0))
+        return mask
+
+    # 4) Build the dense mask from Patch/Shape evidence
+    # Decide size from the largest SignalNN we saw; default missing layers to 0
+    mask = np.zeros(max_sig if max_sig > 0 else 1, dtype=int)
     for i in range(1, max_sig + 1):
-        mask[i - 1] = int(layer_to_type.get(i, 0))
-    
+        mask[i - 1] = 1 if layer_has_pwr.get(i, False) else 0
+
     return mask
+
 
 # --- snapping & de-dup helpers ---
 
-def _snap(arr, decimals=7):
+def _snap(arr, decimals=6):
     if arr is None or np.size(arr) == 0:
         return arr
     return np.round(np.asarray(arr, dtype=float), decimals)
@@ -987,3 +1036,50 @@ def _dedupe_across_groups(brd, eps=1e-7, rdec=9):
                 key = (round(x, rdec), round(y, rdec))
             seen.add(key)
             brd.buried_via_xy[i] = [x, y]
+
+def _normalize_via_coords(brd, snap_dec: int = 7):
+    """
+    Snap via coordinate arrays to `snap_dec` decimals (meters).
+    Safely no-ops if an array attr is missing or empty.
+    """
+    for attr in ("ic_via_xy", "decap_via_xy", "buried_via_xy"):
+        arr = getattr(brd, attr, None)
+        if arr is not None and np.size(arr):
+            setattr(brd, attr, _snap(arr, snap_dec))
+
+
+def _normalize_via_types(brd, dtype=np.int32):
+    """
+    Cast via type arrays to a consistent dtype.
+    Safely no-ops if an array attr is missing.
+    """
+    for attr in ("ic_via_type", "decap_via_type", "buried_via_type"):
+        arr = getattr(brd, attr, None)
+        if arr is not None:
+            setattr(brd, attr, np.asarray(arr, dtype))
+
+def _dedupe_and_count(brd, eps: float = 1e-7, rdec: int = 9) -> tuple[int, int]:
+    """
+    Run global via de-duplication (IC → Decap → Buried) and report
+    the number of unique coordinates before/after.
+
+    Returns
+    -------
+    pre_unique  : int   # distinct (x,y) across IC∪Decap∪Buried before dedupe
+    post_unique : int   # distinct (x,y) across IC∪Decap∪Buried after  dedupe
+    """
+    pre_unique = len(
+        _to_keys(getattr(brd, "ic_via_xy", None), rdec=rdec)
+        | _to_keys(getattr(brd, "decap_via_xy", None), rdec=rdec)
+        | _to_keys(getattr(brd, "buried_via_xy", None), rdec=rdec)
+    )
+
+    _dedupe_across_groups(brd, eps=eps, rdec=rdec)
+
+    post_unique = len(
+        _to_keys(getattr(brd, "ic_via_xy", None), rdec=rdec)
+        | _to_keys(getattr(brd, "decap_via_xy", None), rdec=rdec)
+        | _to_keys(getattr(brd, "buried_via_xy", None), rdec=rdec)
+    )
+
+    return pre_unique, post_unique
