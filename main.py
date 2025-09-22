@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pathlib
 
 from BEM_AC_NVM_PDN import PDN
+from CIM_DC_RES import main_res
 import time
 import os
 import skrf as rf
@@ -52,8 +53,7 @@ def gen_brd_data(
         brd.sxy_index_ranges.append((offset, offset + n_seg))
         offset += n_seg
     brd.sxy_list = [brd.seg_bd_node(b, d) for b in brd.bxy]
-
-
+    
     # --- 3) Stackup & layer-type via external parsers ---
     die_t, er_list, d_r = read_stackup(stackup_path)
     brd.er_list = er_list
@@ -61,11 +61,24 @@ def gen_brd_data(
     brd.d_r = d_r
 
     # --- 4) Z computation (unchanged) ---
-    z = brd.calc_z_fast(res_matrix=None, verbose=True)
+    res_matrix = main_res(
+        brd=brd,
+        die_t=die_t,
+        d=d_r,
+        stackup=brd.stackup,
+        start_layer=brd.start_layers,
+        stop_layer=brd.stop_layers,
+        decap_via_type=brd.decap_via_type,
+        decap_via_xy=brd.decap_via_xy,
+        decap_via_loc=brd.decap_via_loc,
+        ic_via_xy = brd.ic_via_xy,
+        ic_via_loc = brd.ic_via_loc,
+        ic_via_type = brd.ic_via_type
+    )
 
-    brd.buried_via_xy   = brd.buried_via_xy   if hasattr(brd, "buried_via_xy")   else None
-    brd.buried_via_type = brd.buried_via_type if hasattr(brd, "buried_via_type") else None
-
+    z = brd.calc_z_fast(res_matrix=res_matrix, verbose=True)
+    
+    
     result_out = [
         z,
         brd.bxy,

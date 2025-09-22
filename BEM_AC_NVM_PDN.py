@@ -105,6 +105,7 @@ def merge_square_mat(Min, merge_port_list, map2orig_input=[]):
 def merge_L_big(L_big, branch_merge_list, branch):
     old_branch_nodes = branch[:, 0:3]  # three columns: branch #, node1, node2
     map2orig = list(range(0, L_big.shape[0]))
+    
     for i in range(0, len(branch_merge_list)):
         for c in range(0, branch_merge_list[i].shape[1]):
             if branch_merge_list[i].shape[0] > 1:
@@ -146,18 +147,17 @@ def calc_lpul_bem(via_xy, via_r, sxy, option='v1', n=6):
     v2 means dividing each port into several segments
 
     '''
-    e = 8.85e-12
     # er = 4.4
-    area = np.array([PolyArea(sxy[:, 0], sxy[:, 1])])
-    
-
-
     # C_pul = np.array([er*e*area/1])
     # directly calculate z parameters given decap via locations
+    
+    e = 8.85e-12 # ε0
+    u = 4 * pi * 1e-7 # μ0
+    
+    d = 1   # unit thickness (scaled later)
+    R = 0.3 # “far-field” distance cap
 
-    u = 4 * pi * 1e-7
-    d = 1
-    R = 0.3
+    area = np.array([PolyArea(sxy[:, 0], sxy[:, 1])]) # board cross-sectional area
 
     if option == 'v1':
 
@@ -215,11 +215,7 @@ def calc_lpul_bem(via_xy, via_r, sxy, option='v1', n=6):
         for k in range(0, Ntot):
             for m in range(0, Ntot):
                 if m >= sxy.shape[0] and k == m:
-                    
                     Gh[k, m] = -u * d / (4 * area) * (via_r ** 2) * (4 * log(via_r / R) - 1)
-
-
-
 
                 elif m >= sxy.shape[0] and k != m:
                     Gh[k, m] = 0
@@ -412,9 +408,8 @@ def org_merge_pdn(stackup, via_type, start_layer, stop_layer,
     for via_n in range(0, via_type.shape[0]):
         for cavity_n in range(start_layer[via_n], stop_layer[via_n]):
 
-            if cavity_n == start_layer[via_n] and start_layer[via_n] == 0 and stackup[start_layer[via_n]] != via_type[
-                via_n] \
-                    and top_port_grp[via_n] == -1:
+            if cavity_n == start_layer[via_n] and start_layer[via_n] == 0 and stackup[start_layer[via_n]] != \
+                                                            via_type[via_n] and top_port_grp[via_n] == -1:
                 node_n += 1
                 node1 = deepcopy(node_n)
                 if stackup[cavity_n + 1] != via_type[via_n]:
@@ -1122,10 +1117,9 @@ class PDN():
 
         self.z_orig = np.array([])  # original z parameter, without merging IC ports, without adding decaps
         self.z_mergeIC_no_decap = np.array([])  # z parameter with merging IC ports, without adding decaps
-        self.z_mergeIC_with_decap = np.array(
-            [])  # z parameter with merging IC ports and added decaps, port #1 is always IC
+        self.z_mergeIC_with_decap = np.array([])  # z parameter with merging IC ports and added decaps, port #1 is always IC
+        
         #change f
-
         self.fstart = 10e3
         self.fstop = 200e6
         # self.fstop = 1e9  
@@ -1172,7 +1166,7 @@ class PDN():
         # note that input matrix bxy must go back to the origin point!!!
         # bxy is the boundary coordinate information,N*2 matrix
         # dl is the length of the segments
-        # sxy is a S*4 matrix, x1, y1, x2, y2
+        # sxy is a S*4 matrix, x1, y1, x2, y2. S - number of segments
 
         # if dl is smaller than the interval of the bxy points, do linear
         # interpolation
@@ -1305,18 +1299,6 @@ class PDN():
         top_port_grp = -1 * np.ones((via_xy.shape[0]), dtype=int)
         bot_port_grp = -1 * np.ones((via_xy.shape[0]), dtype=int)
 
-        ############################ nk ############################
-        # If main.py (SPD path) provided explicit per-via port maps, use them and skip heuristic
-        if hasattr(self, "top_port_num") and hasattr(self, "bot_port_num"):
-            tpn = self.top_port_num.tolist() if isinstance(self.top_port_num, np.ndarray) else list(self.top_port_num)
-            bpn = self.bot_port_num.tolist() if isinstance(self.bot_port_num, np.ndarray) else list(self.bot_port_num)
-            if len(tpn) == via_xy.shape[0] and len(bpn) == via_xy.shape[0]:
-                top_port_num = tpn
-                bot_port_num = bpn
-            elif verbose:
-                print("PDN [WARN] Provided top/bot_port_num length mismatch; falling back to heuristic.")
-        ############################ nk ############################
-
         # ---- Heuristic mapping (only used if explicit maps are unusable) ----
         port_num = 1
         pwr_count = gnd_count = 0
@@ -1392,8 +1374,8 @@ class PDN():
         freq = self.freq.f
         new_branch_nodes_w_c = deepcopy(new_branch_nodes)
 
-        new_branch_n = new_branch_nodes.shape[0]
-        new_node_n   = new_old_node_map.shape[0]
+        new_branch_n = new_branch_nodes.shape[0]    # number of branches
+        new_node_n   = new_old_node_map.shape[0]    # number of nodes
 
         # Add inter-layer capacitor branches (one per cavity)
         for c in range(die_t.shape[0]):

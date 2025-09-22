@@ -92,7 +92,6 @@ def parse_spd(brd , spd_path: str, ground_net: str = "gnd", power_net: str = "pw
     # _fill_port_cavity_maps(brd, ic_blocks, decap_blocks)
     # log("[SPD] IC via port/cavity maps:\n", getattr(brd, 'top_port_num', "N/A"))
     # log("[SPD] Decap via port/cavity maps:\n", getattr(brd, 'bot_port_num', "N/A"))
-
     # 9) Global guards: Via normalization + Via de-duplication for all vias
     _normalize_via_coords(brd, snap_dec=7)
     _normalize_via_types(brd, dtype=np.int32)

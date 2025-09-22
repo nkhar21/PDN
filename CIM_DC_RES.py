@@ -90,14 +90,13 @@ def planesresistance(bxy_b, via_xy_b, via_r, d):
     sigma = 5.8e7
     dl = 1e-3
     num_via_seg = 6
-    via_sxy = np.zeros((via_xy_b.shape[0] * num_via_seg, 4))
+    via_sxy = np.zeros((via_xy_b.shape[0] * num_via_seg, 4)) # CW arcs around each via
 
     for i in range(0, via_xy_b.shape[0]):
         via_sxy[i * num_via_seg:(i + 1) * num_via_seg, :] = segment_port(via_xy_b[i, 0], via_xy_b[i, 1], via_r, num_via_seg)
 
-
-    s_b = seg_bd_node(bxy_b, dl)
-    b = np.concatenate((via_sxy, s_b))
+    s_b = seg_bd_node(bxy_b, dl) # CCW segments of the board outline
+    b = np.concatenate((via_sxy, s_b)) # all boundary segments
     Ntot = b.shape[0]
 
     U = np.ndarray((Ntot, Ntot))
@@ -130,8 +129,8 @@ def planesresistance(bxy_b, via_xy_b, via_r, d):
 
                 cos_theta = ((xj0 - xi0) * (yj2 - yj1) - (yj0 - yi0) * (xj2 - xj1)) / (R * wj)
 
-                U[m, n] = -1 / pi * wj * cos_theta / R
-                H[m, n] = -1 / (sigma * pi * d) * log(R)
+                U[m, n] = -1 / pi * wj * cos_theta / R # approximation
+                H[m, n] = -1 / (sigma * pi * d) * log(R) # approximation
 
     U_H = np.matmul(np.linalg.inv(U), H)
     U_H_inv = np.linalg.inv(U_H)
@@ -140,14 +139,15 @@ def planesresistance(bxy_b, via_xy_b, via_r, d):
     reduce_list = list(range(0, (via_xy_b.shape[0] - 1) * num_via_seg + 1, num_via_seg)) + list(
         range(via_xy_b.shape[0] * num_via_seg, b.shape[0]))
 
+    # merged G
     U_H_inv_R = np.add.reduceat(np.add.reduceat(U_H_inv, reduce_list, axis=0), reduce_list,
                                 axis=1)  # merge the segments on the same via
-
+    
     R_mat_tot = np.linalg.inv(U_H_inv_R)  # the total resistance matrix
 
+    # via-node block
     R_mat_nodes = R_mat_tot[0:via_xy_b.shape[0], 0:via_xy_b.shape[0]]  # nodal resistance matrix
     ref_via_num = -1
-
 
     via_list = list(range(0, via_xy_b.shape[0]))
     del via_list[ref_via_num]
@@ -158,8 +158,6 @@ def planesresistance(bxy_b, via_xy_b, via_r, d):
         R_mat_nodes[:, i] = R_mat_nodes[:, i] - R_mat_nodes[:, ref_via_num]
 
     R = R_mat_nodes[np.ix_(via_list, via_list)]#+1e-12
-
-
 
     G = np.linalg.inv(R)
 
@@ -412,9 +410,7 @@ def org_resistance(stackup, via_type, start_layer, stop_layer, via_xy, decap_via
 
 
 def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, decap_via_xy, decap_via_loc, ic_via_xy, ic_via_type, ic_via_loc):
-    import numpy as np
-    from copy import deepcopy
-
+    
     if hasattr(brd, 'buried_via_xy') and brd.buried_via_xy is not None and len(brd.buried_via_xy) > 0:
         via_xy = np.concatenate((brd.ic_via_xy, brd.decap_via_xy, brd.buried_via_xy), axis=0)
         via_type = np.concatenate((brd.ic_via_type, brd.decap_via_type, brd.buried_via_type), axis=0)
@@ -428,8 +424,6 @@ def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, de
     branch_num = branch.shape[0]
     node_num = int(np.max(branch[:, [1, 2]]))
     branch_verti = np.where((branch[:, 3] == branch[:, 4]) & (branch[:, 3] != -1))[0] 
-
-
 
     # A matrix
     A = np.zeros((node_num+1, branch_num))
@@ -447,7 +441,7 @@ def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, de
         vj = branch[i, 4]
 
         if vj == -1:
-            zb[i, i] = 1e-5
+            zb[i, i] = 1e-5  # “special” branches (e.g., decap links) keep tiny placeholder
 
         elif i in branch_verti:
             layer_b = int(branch[i, 6])
@@ -463,15 +457,15 @@ def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, de
             if 0 <= lay < len(d):
                 if lay == stop_lay:
                     # Do NOT include dielectric thickness on the last layer
-                    total += d[lay]
+                    total += d[lay]  # last layer: add only copper thickness
 
                 elif lay < len(die_t):
                     # Normal case: include both conductor and dielectric thickness
-                    total += d[lay] + die_t[lay]
+                    total += d[lay] + die_t[lay] # middle: copper + dielectric thickness
 
                 else:
                     # In case die_t is shorter than d, add only conductor thickness
-                    total += d[lay]
+                    total += d[lay] # safety branch if die_t shorter
 
             else:
                 print(f"[Warning] layer index {lay} out of bounds for d/die_t → skipped")
@@ -484,15 +478,13 @@ def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, de
     if isinstance(bxy, np.ndarray) and bxy.ndim == 3 and bxy.shape[0] == 1 and bxy.shape[2] == 2:
         bxy = bxy[0]  
 
+    # If single (N×2), duplicate into a list with one polygon per stackup layer
     # Check again and duplicate for each layer
     if isinstance(bxy, np.ndarray) and bxy.ndim == 2 and bxy.shape[1] == 2:
         num_layers = len(stackup)
         bxy = [bxy.copy() for _ in range(num_layers)]
 
-    horizontal_branches = branch[
-    (branch[:, 0] > branch_verti.shape[0] - 1)
-]
-
+    horizontal_branches = branch[(branch[:, 0] > branch_verti.shape[0] - 1)]
     target_layers = np.unique(horizontal_branches[:, 6].astype(int))
 
     for i in target_layers:
@@ -505,8 +497,6 @@ def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, de
             (branches[:, 0] > branch_verti.shape[0] - 1) 
         ]
 
-
-
         # skip if no horizontal branch found
         if branches.shape[0] == 0:
             continue
@@ -517,8 +507,8 @@ def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, de
         unique_values = np.unique(combined_values)
         via_xy_b = via_xy[unique_values.astype(int)]
 
-        for i in range(len(bxy)):
-            bxy_b = np.array(bxy[i]) 
+        #for i in range(len(bxy)): # ChatGPT change nk
+        bxy_b = np.array(bxy[i]) 
 
         via_xy_b = np.vstack([via_xy_b, bxy_b[1] + 1e-5])
         rb = planesresistance(bxy_b, via_xy_b, via_radius, d[i])
@@ -536,7 +526,6 @@ def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, de
 
     max_node = int(np.max(branch[:, [1, 2]]))  
 
-
     # for i in range(0, 22):
     #     zb[i,i]=1
 
@@ -549,9 +538,7 @@ def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, de
     yn2 = np.delete(yn1, max_node, 0)
     yn3 = np.delete(yn2, max_node, 1)
 
-
     zn2 = np.linalg.inv(yn3)
-    t2 = time.time()
 
     return zn2[0][0]
 
