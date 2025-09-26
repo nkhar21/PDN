@@ -44,6 +44,9 @@ def gen_brd_data(
         raise ValueError(f"Unexpected return count from parse_spd: {len(result)}")
 
     # --- 2) Board boundary segments (unchanged logic) ---
+    bxy = np.array([np.round(np.array(item), 6) for item in bxy], dtype=object)
+    brd.bxy = bxy
+
     brd.sxy = np.concatenate([brd.seg_bd_node(single_bxy, d) for single_bxy in brd.bxy], axis=0)
     brd.sxy_index_ranges = []
     offset = 0
@@ -118,69 +121,48 @@ def compare_touchstone_with_python_z(touchstone_path, python_z, freq):
     except Exception as e:
         print(f"[ERROR] Failed to compare Touchstone and Python Z: {e}")
 
-def compare_shorted_z(touchstone_path, python_z, freq, ports_to_short):
+def compare_shorted_z(touchstone_path, python_z, freq, shorted_port_idx):
     """
-    Compare Z-parameters after shorting one or more ports between Python solver and Touchstone.
-
-    Parameters
-    ----------
-    touchstone_path : str
-        Path to Touchstone file (.sNp).
-    python_z : ndarray (nf, n_ports, n_ports)
-        Frequency-dependent Z-matrix from Python solver.
-    freq : ndarray
-        Frequency array (Hz).
-    ports_to_short : int or list[int]
-        Port(s) to short (zero-based indices).
+    Compare Z-parameters after shorting a port between Python solver and Touchstone.
+    
+    freq : ndarray (Hz) — frequency array used in python_z
     """
     try:
-        # Normalize ports_to_short
-        if isinstance(ports_to_short, int):
-            ports_to_short = [ports_to_short]
-
-        # Build Frequency object
+        # Build scikit-rf Frequency object from given numpy freq array
         Freq = rf.Frequency.from_f(freq, unit='hz')
 
-        # --- Load and interpolate Touchstone ---
+        # --- Load and interpolate Touchstone onto the same freq grid ---
         ntw = rf.Network(touchstone_path).interpolate(Freq, kind='linear')
-        z_touchstone = ntw.z
+        z_touchstone = ntw.z  # shape (201, n, n)
 
-        # --- Apply multi-port short reduction ---
-        python_z_shorted, keep_py     = short_ports_reduce_z(python_z, ports_to_short)
-        touchstone_z_shorted, keep_ts = short_ports_reduce_z(z_touchstone, ports_to_short)
+        # --- Short the port for each frequency ---
+        python_z_shorted = np.array([short_1port_toolz(z, shorted_port_idx) for z in python_z])
+        touchstone_z_shorted = np.array([short_1port_toolz(z, shorted_port_idx) for z in z_touchstone])
 
         # --- Plot comparison ---
         n_ports = python_z_shorted.shape[1]
         for i in range(n_ports):
             for j in range(n_ports):
                 plt.figure()
-                plt.semilogx(
-                    freq,
-                    #20 * np.log10(np.abs(python_z_shorted[:, i, j]) + 1e-20),
-                    np.abs(python_z_shorted[:, i, j]),
-                    label="Python Z (shorted)"
-                )
-                plt.semilogx(
-                    freq,
-                    #20 * np.log10(np.abs(touchstone_z_shorted[:, i, j]) + 1e-20),
-                    np.abs(touchstone_z_shorted[:, i, j]),
-                    "--",
-                    label="Touchstone Z (shorted)"
-                )
-                plt.xlabel("Frequency (Hz)")
-                plt.ylabel(f"|Z| (Ω)")
-                plt.title(f"Comparison of Shorted Z{i+1}{j+1}")
+                plt.semilogx(freq / 1e6,
+                             20 * np.log10(np.abs(python_z_shorted[:, i, j]) + 1e-20),
+                             label='Python Z (shorted)')
+                plt.semilogx(freq / 1e6,
+                             20 * np.log10(np.abs(touchstone_z_shorted[:, i, j]) + 1e-20),
+                             '--',
+                             label='Touchstone Z (shorted)')
+                plt.xlabel('Frequency (MHz)')
+                plt.ylabel(f'|Z{i+1}{j+1}| (dBΩ)')
+                plt.title(f'Comparison of Shorted Z{i+1}{j+1}')
                 plt.legend()
-                plt.grid(True, which="both", ls="--")
+                plt.grid(True, which='both', ls='--')
                 plt.tight_layout()
                 plt.show()
 
-        return python_z_shorted, touchstone_z_shorted, keep_py
-
     except Exception as e:
         print(f"[ERROR] Failed to compare shorted Z: {e}")
-        return None, None, None
-    
+
+
 
 def save2s(self, z, filename, path, z0=50):
     brd = rf.Network()
@@ -231,17 +213,11 @@ if __name__ == '__main__':
     freq = np.logspace(np.log10(fstart), np.log10(fstop), nf)
     Freq = rf.Frequency(start=fstart/1e6, stop=fstop/1e6, npoints=nf, unit='mhz', sweep_type='log')
     
-    # short decaps 
-    n = z.shape[-1]
-    decap_port_list = list(range(n))
-    del decap_port_list[ic_port_index]
-    print(f"decap ports to short: {decap_port_list}")
-
     compare_shorted_z(
         touchstone_path=touchstone_path,
         python_z=z,
         freq=freq,
-        ports_to_short=decap_port_list  # short decap1 and decap2
+        shorted_port_idx=ic_port_index
     )
     
 

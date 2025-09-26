@@ -418,9 +418,6 @@ def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, de
         via_xy = np.concatenate((brd.ic_via_xy, brd.decap_via_xy), axis=0)
         via_type = np.concatenate((brd.ic_via_type, brd.decap_via_type), axis=0)
 
-    for i_v in range(len(start_layer)):
-        print(f"[VIA {i_v}] type={via_type[i_v]} start={start_layer[i_v]} stop={stop_layer[i_v]} xy={via_xy[i_v]}")
-    
     branch = org_resistance(stackup, via_type, start_layer, stop_layer, via_xy, decap_via_type, decap_via_xy, decap_via_loc, ic_via_xy, ic_via_type, ic_via_loc)
 
 

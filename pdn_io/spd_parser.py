@@ -63,21 +63,15 @@ def parse_spd(brd , spd_path: str, ground_net: str = "gnd", power_net: str = "pw
     _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks, pwr_net=power_net, gnd_net=ground_net)
     log("\n[SPD] IC vias:", len(getattr(brd, 'ic_node_names', [])),
         "\nDecap vias:", len(getattr(brd, 'decap_node_names', [])))
-    print(f"afterr 4)\n via_count = {len(brd.ic_via_xy)+len(brd.decap_via_xy)+len(brd.buried_via_xy)}\n \
-          brd.ic_via_xy:\n{brd.ic_via_xy}\nbrd.decap_via_xy:\n{brd.decap_via_xy}\nbrd.buried_via_xy:\n{brd.buried_via_xy}")
 
     # 5) All via pairs (upper/lower nodes), canonicalized
     via_lines = _extract_via_lines(text, pwr_net=power_net, gnd_net=ground_net)
     log("[SPD] Via lines extracted:\n", len(via_lines), "examples:\n", via_lines[:5])
-    print(f"afterr 5)\n via_count = {len(brd.ic_via_xy)+len(brd.decap_via_xy)+len(brd.buried_via_xy)}\n \
-          brd.ic_via_xy:\n{brd.ic_via_xy}\nbrd.decap_via_xy:\n{brd.decap_via_xy}\nbrd.buried_via_xy:\n{brd.buried_via_xy}")
 
     # 6) Start/stop/type arrays for ALL vias (IC+DECAP order as in Connect)
     _extract_start_stop_type(brd, via_lines, node_info, ic_blocks, decap_blocks)
     log("[SPD] Start/stop/type via arrays:\n", brd.start_layers, brd.stop_layers, brd.via_type)
-    print(f"afterr 6)\n via_count = {len(brd.ic_via_xy)+len(brd.decap_via_xy)+len(brd.buried_via_xy)}\n \
-          brd.ic_via_xy:\n{brd.ic_via_xy}\nbrd.decap_via_xy:\n{brd.decap_via_xy}\nbrd.buried_via_xy:\n{brd.buried_via_xy}")
-
+    
 
     # 7) Buried vias (optional)
     _fill_buried_vias(brd, via_lines, node_info)
@@ -86,8 +80,7 @@ def parse_spd(brd , spd_path: str, ground_net: str = "gnd", power_net: str = "pw
         log("[SPD] Buried via start layers:", brd.start_layers[-len(brd.buried_via_xy):])
         log("[SPD] Buried via stop layers:", brd.stop_layers[-len(brd.buried_via_xy):])
         log("[SPD] Buried via type layers:", brd.via_type[-len(brd.buried_via_xy):])
-    print(f"afterr 7)\n via_count = {len(brd.ic_via_xy)+len(brd.decap_via_xy)+len(brd.buried_via_xy)}\n \
-          brd.ic_via_xy:\n{brd.ic_via_xy}\nbrd.decap_via_xy:\n{brd.decap_via_xy}\nbrd.buried_via_xy:\n{brd.buried_via_xy}")
+
 
     # 8) Via cavity location flags from node layers (top=1, bottom=0)
     _fill_via_locs(brd, node_info)
@@ -105,9 +98,6 @@ def parse_spd(brd , spd_path: str, ground_net: str = "gnd", power_net: str = "pw
 
     pre_u, post_u = _dedupe_and_count(brd, eps=1e-7, rdec=9)
     log(f"[SPD] Dedupe adjusted {post_u - pre_u} duplicate(s) (eps=1e-7 m)")
-    
-    print(f"afterr 9)\n via_count = {len(brd.ic_via_xy)+len(brd.decap_via_xy)+len(brd.buried_via_xy)}\n \
-          brd.ic_via_xy:\n{brd.ic_via_xy}\nbrd.decap_via_xy:\n{brd.decap_via_xy}\nbrd.buried_via_xy:\n{brd.buried_via_xy}")
 
     # 10) Infer stackup mask (0=GND-return layer, 1=PWR layer)
     brd.stackup = _infer_stackup_mask(text, node_info=node_info)
@@ -488,7 +478,7 @@ def _extract_via_lines(text: str, pwr_net: str = "pwr", gnd_net: str = "gnd"):
             raise ValueError(f"Via tag '{vtag}' disagrees with node tag '{utag}'")
 
         out.append((canon_node(un), canon_node(ln)))
-    print(f"Via Lines {len(out)}: {out}")    
+
     return out
 
 def _extract_start_stop_type(brd, via_lines, node_info, ic_blocks, decap_blocks):
