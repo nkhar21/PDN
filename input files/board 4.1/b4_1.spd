@@ -282,6 +282,7 @@ Via09::gnd UpperNode = Node014::gnd LowerNode = Node015::gnd PadStack = ~Default
 +            CktNode_Includ_NetName = 0
 * Via Shape Connection
 +            ViaShapeConnection = 0
++            Check_for_Dependency_Version = 0
 * Warning/Error Checking
 +            Check_for_Floating_Nodes = 1
 +            Check_for_Node_Placement = 1
@@ -299,6 +300,7 @@ Via09::gnd UpperNode = Node014::gnd LowerNode = Node015::gnd PadStack = ~Default
 +            ObjectOutline_Color = GRAY
 +            LayerColorOpacity = 50
 +            RulerFont = F5FFFFFF000000000000000000000000900100000000000003020122417269616C000000000000000000000000000000000000000000000000000000
++            ShowCheckResult = 0
 
 * Pulse Response Setting description lines
 
@@ -316,15 +318,15 @@ Via09::gnd UpperNode = Node014::gnd LowerNode = Node015::gnd PadStack = ~Default
 
 * Port description lines
 .Port
-Port1_decap_port1_1::pwr Auto GenFromCktInstance="decap_port1" GenFromCktModel="cap"
-+            PositiveTerminal $Package.Node08::pwr
-+            NegativeTerminal $Package.Node010::gnd
-Port2_decap_port2_1::pwr Auto GenFromCktInstance="decap_port2" GenFromCktModel="cap"
-+            PositiveTerminal $Package.Node013::pwr
-+            NegativeTerminal $Package.Node015::gnd
-Port3_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
+Port1_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 +            PositiveTerminal $Package.Node01::pwr
 +            NegativeTerminal $Package.Node04::gnd
+Port2_decap_port1_1::pwr Auto GenFromCktInstance="decap_port1" GenFromCktModel="cap"
++            PositiveTerminal $Package.Node08::pwr
++            NegativeTerminal $Package.Node010::gnd
+Port3_decap_port2_1::pwr Auto GenFromCktInstance="decap_port2" GenFromCktModel="cap"
++            PositiveTerminal $Package.Node013::pwr
++            NegativeTerminal $Package.Node015::gnd
 .EndPort
 
 * Extraction Setting description lines

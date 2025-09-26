@@ -338,6 +338,7 @@ Via13::gnd UpperNode = Node27::gnd LowerNode = Node28::gnd PadStack = ~DefaultPa
 +            CktNode_Includ_NetName = 0
 * Via Shape Connection
 +            ViaShapeConnection = 0
++            Check_for_Dependency_Version = 0
 * Warning/Error Checking
 +            Check_for_Floating_Nodes = 1
 +            Check_for_Node_Placement = 1
@@ -355,6 +356,7 @@ Via13::gnd UpperNode = Node27::gnd LowerNode = Node28::gnd PadStack = ~DefaultPa
 +            ObjectOutline_Color = GRAY
 +            LayerColorOpacity = 50
 +            RulerFont = F5FFFFFF000000000000000000000000900100000000000003020122417269616C000000000000000000000000000000000000000000000000000000
++            ShowCheckResult = 0
 
 * Pulse Response Setting description lines
 
@@ -372,21 +374,21 @@ Via13::gnd UpperNode = Node27::gnd LowerNode = Node28::gnd PadStack = ~DefaultPa
 
 * Port description lines
 .Port
-Port1_cap_port1_1::pwr
-+            PositiveTerminal $Package.Node013::pwr
-+            NegativeTerminal $Package.Node017::gnd
-Port2_cap_port2_1::pwr
-+            PositiveTerminal $Package.Node023::pwr
-+            NegativeTerminal $Package.Node21::gnd
-Port3_cap_port3_1::pwr
-+            PositiveTerminal $Package.Node010::pwr
-+            NegativeTerminal $Package.Node012::gnd
-Port4_cap_port4_1::pwr
-+            PositiveTerminal $Package.Node1::pwr
-+            NegativeTerminal $Package.Node08::gnd
-Port5_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
+Port1_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 +            PositiveTerminal $Package.Node01::pwr
 +            NegativeTerminal $Package.Node04::gnd
+Port2_decap_port1_1::pwr Auto GenFromCktInstance="decap_port1" GenFromCktModel="cap"
++            PositiveTerminal $Package.Node013::pwr
++            NegativeTerminal $Package.Node017::gnd
+Port3_decap_port2_1::pwr Auto GenFromCktInstance="decap_port2" GenFromCktModel="cap"
++            PositiveTerminal $Package.Node023::pwr
++            NegativeTerminal $Package.Node21::gnd
+Port4_decap_port3_1::pwr Auto GenFromCktInstance="decap_port3" GenFromCktModel="cap"
++            PositiveTerminal $Package.Node010::pwr
++            NegativeTerminal $Package.Node012::gnd
+Port5_decap_port4_1::pwr Auto GenFromCktInstance="decap_port4" GenFromCktModel="cap"
++            PositiveTerminal $Package.Node1::pwr
++            NegativeTerminal $Package.Node08::gnd
 .EndPort
 
 * Extraction Setting description lines
@@ -585,6 +587,16 @@ Port5_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 .PostLayoutSetup
 .FrequencySetup StartRange = 100000 EndRange = 1e+09
 .EndFrequencySetup
+.OptiFreqSetup
+.FrequencySweep 1.000000e-04MHz 1.000000e-02GHz 20 Log
+.FrequencySweep 1.000000e+01MHz 1.000000e-01GHz 20 Log
+.FrequencySweep 1.000000e+02MHz 1.000000e+01GHz 40 Log
+.EndOptiFreqSetup
+.EMIOptiFreqSetup
+.FrequencySweep 1.000000e-04MHz 1.000000e-02GHz 20 Log
+.FrequencySweep 1.000000e+01MHz 1.000000e-01GHz 5.000000e+00MHz Linear
+.FrequencySweep 1.000000e+02MHz 1.000000e+01GHz 1.000000e+01MHz Linear
+.EndEMIOptiFreqSetup
 .WhatIfSetup Name = WhatIfDefault
 .EndWhatIfSetup
 .StatisticalSetup Name = StatisticalDefault

@@ -174,7 +174,7 @@ if __name__ == '__main__':
             scale=("log","log"),
             xlabel="Frequency (Hz)",
             ylabel="Impedance (Ω)",
-            title="Comparison",
+            title="Z11 IC Comparison",
             color="blue",
             linestyle="-",
             linewidth=2,
