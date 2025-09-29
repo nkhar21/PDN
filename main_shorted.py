@@ -44,9 +44,6 @@ def gen_brd_data(
         raise ValueError(f"Unexpected return count from parse_spd: {len(result)}")
 
     # --- 2) Board boundary segments (unchanged logic) ---
-    bxy = np.array([np.round(np.array(item), 6) for item in bxy], dtype=object)
-    brd.bxy = bxy
-
     brd.sxy = np.concatenate([brd.seg_bd_node(single_bxy, d) for single_bxy in brd.bxy], axis=0)
     brd.sxy_index_ranges = []
     offset = 0

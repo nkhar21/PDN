@@ -43,9 +43,7 @@ Polygon1+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+
 .Shape ShapeSignal01
 Polygon1::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
 +            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
-Circle5::gnd- ViaHole_A Sub-element 4.000000e+00mm 1.000000e+01mm 5.000000e-01mm
-Circle05::gnd- ViaHole_A Sub-element 4.000000e+00mm 1.400000e+01mm 5.000000e-01mm
-Circle01::gnd- ViaHole_A Sub-element 2.400000e+01mm 1.800000e+01mm 5.000000e-01mm
+Circle01::gnd- ViaHole_A 2.400000e+01mm 1.800000e+01mm 5.000000e-01mm
 .EndShape
 
 .Shape ShapeSignal02
@@ -71,11 +69,8 @@ Polygon5::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000
 .Shape ShapeSignal06
 Polygon6::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
 +            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
-Circle4::gnd- ViaHole_A Sub-element 2.400000e+01mm 9.000000e+00mm 5.000000e-01mm
-Circle2::gnd- ViaHole_A Sub-element 2.400000e+01mm 1.800000e+01mm 5.000000e-01mm
+Circle2::gnd- ViaHole_A 2.400000e+01mm 1.800000e+01mm 5.000000e-01mm
 .EndShape
-
-UnionizedShape = A64C4FB7-5AB1DF41-D45832A3-06A4954C
 
 * CuttingBoundary description lines
 
@@ -101,16 +96,10 @@ PatchSignal06 Shape = ShapeSignal06 Layer = Signal06
 * ConformalLayer description lines
 
 * Node description lines
-Node010::pwr X = 2.400000e+01mm Y = 9.000000e+00mm Layer = Signal06
-Node011::gnd X = 2.600000e+01mm Y = 9.000000e+00mm Layer = Signal05
-Node012::gnd X = 2.600000e+01mm Y = 9.000000e+00mm Layer = Signal06
-Node013::pwr X = 4.000000e+00mm Y = 1.400000e+01mm Layer = Signal01
-Node014::pwr X = 4.000000e+00mm Y = 1.400000e+01mm Layer = Signal02
+Node013::gnd X = 4.000000e+00mm Y = 1.400000e+01mm Layer = Signal01
 Node017::gnd X = 6.000000e+00mm Y = 1.400000e+01mm Layer = Signal01
-Node018::gnd X = 6.000000e+00mm Y = 1.400000e+01mm Layer = Signal03
 Node01::pwr X = 2.400000e+01mm Y = 1.800000e+01mm Layer = Signal01
-Node023::pwr X = 4.000000e+00mm Y = 1.000000e+01mm Layer = Signal01
-Node024::pwr X = 4.000000e+00mm Y = 1.000000e+01mm Layer = Signal02
+Node023::gnd X = 4.000000e+00mm Y = 1.000000e+01mm Layer = Signal01
 Node025::gnd X = 1.200000e+01mm Y = 8.000000e+00mm Layer = Signal04
 Node026::gnd X = 1.200000e+01mm Y = 8.000000e+00mm Layer = Signal05
 Node02::pwr X = 2.400000e+01mm Y = 1.800000e+01mm Layer = Signal02
@@ -119,28 +108,20 @@ Node05::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal03
 Node06::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal04
 Node07::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal05
 Node08::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal06
-Node09::pwr X = 2.400000e+01mm Y = 9.000000e+00mm Layer = Signal02
 Node1::pwr X = 2.400000e+01mm Y = 1.800000e+01mm Layer = Signal06
 Node21::gnd X = 6.000000e+00mm Y = 1.000000e+01mm Layer = Signal01
-Node22::gnd X = 6.000000e+00mm Y = 1.000000e+01mm Layer = Signal03
 Node27::gnd X = 1.800000e+01mm Y = 8.000000e+00mm Layer = Signal04
 Node28::gnd X = 1.800000e+01mm Y = 8.000000e+00mm Layer = Signal05
 
 * Trace description lines
 
 * Via description lines
-Via010::pwr UpperNode = Node023::pwr LowerNode = Node024::pwr PadStack = ~DefaultPadStack
 Via012::gnd UpperNode = Node025::gnd LowerNode = Node026::gnd PadStack = ~DefaultPadStack
 Via01::pwr UpperNode = Node01::pwr LowerNode = Node02::pwr PadStack = ~DefaultPadStack
 Via02::pwr UpperNode = Node02::pwr LowerNode = Node1::pwr PadStack = ~DefaultPadStack
 Via03::gnd UpperNode = Node04::gnd LowerNode = Node05::gnd PadStack = ~DefaultPadStack
 Via04::gnd UpperNode = Node05::gnd LowerNode = Node06::gnd PadStack = ~DefaultPadStack
 Via05::gnd UpperNode = Node07::gnd LowerNode = Node08::gnd PadStack = ~DefaultPadStack
-Via06::pwr UpperNode = Node09::pwr LowerNode = Node010::pwr PadStack = ~DefaultPadStack
-Via07::gnd UpperNode = Node011::gnd LowerNode = Node012::gnd PadStack = ~DefaultPadStack
-Via08::pwr UpperNode = Node013::pwr LowerNode = Node014::pwr PadStack = ~DefaultPadStack
-Via09::gnd UpperNode = Node017::gnd LowerNode = Node018::gnd PadStack = ~DefaultPadStack
-Via11::gnd UpperNode = Node21::gnd LowerNode = Node22::gnd PadStack = ~DefaultPadStack
 Via13::gnd UpperNode = Node27::gnd LowerNode = Node28::gnd PadStack = ~DefaultPadStack
 
 * WirebondDefination description lines
@@ -247,27 +228,12 @@ Via13::gnd UpperNode = Node27::gnd LowerNode = Node28::gnd PadStack = ~DefaultPa
 .EndPartialCkt
 
 * Component description lines
-.Connect decap_port1 cap Usage = 0b1000 Checked = 1
-1 $Package.Node013::pwr
-2 $Package.Node017::gnd
-.EndC
-
-.Connect decap_port2 cap Usage = 0b1000 Checked = 1
-1 $Package.Node023::pwr
-2 $Package.Node21::gnd
-.EndC
-
-.Connect decap_port3 cap Usage = 0b1000 Checked = 1
-1 $Package.Node010::pwr
-2 $Package.Node012::gnd
-.EndC
-
-.Connect decap_port4 cap Usage = 0b1000 Checked = 1
+.Connect decap_port cap Usage = 0b11000 Checked = 1
 1 $Package.Node1::pwr
 2 $Package.Node08::gnd
 .EndC
 
-.Connect ic_port ic Usage = 0b1000 Checked = 1
+.Connect ic_port ic Usage = 0b11000 Checked = 1
 1 $Package.Node01::pwr
 2 $Package.Node04::gnd
 .EndC
@@ -355,6 +321,7 @@ Via13::gnd UpperNode = Node27::gnd LowerNode = Node28::gnd PadStack = ~DefaultPa
 +            ObjectOutline_Color = GRAY
 +            LayerColorOpacity = 50
 +            RulerFont = F5FFFFFF000000000000000000000000900100000000000003020122417269616C000000000000000000000000000000000000000000000000000000
++            Ignore_REFplane_GND_ShortCircuit = 1
 
 * Pulse Response Setting description lines
 
@@ -366,7 +333,7 @@ Via13::gnd UpperNode = Node27::gnd LowerNode = Node28::gnd PadStack = ~DefaultPa
 .DC_BBS_Setting DCFitted = 0 BBSFitted = 0 PDCEqualPotential = 0
 
 * FrequencyBand description lines
-.FrequencySweep 1.000000e-02MHz 5.000000e+00GHz 0 Adaptive
+.FrequencySweep 1.000000e-02MHz 2.000000e+00GHz 0 Adaptive
 
 * Resonance Setup description lines
 
@@ -375,16 +342,7 @@ Via13::gnd UpperNode = Node27::gnd LowerNode = Node28::gnd PadStack = ~DefaultPa
 Port1_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 +            PositiveTerminal $Package.Node01::pwr
 +            NegativeTerminal $Package.Node04::gnd
-Port2_decap_port1_1::pwr Auto GenFromCktInstance="decap_port1" GenFromCktModel="cap"
-+            PositiveTerminal $Package.Node013::pwr
-+            NegativeTerminal $Package.Node017::gnd
-Port3_decap_port2_1::pwr Auto GenFromCktInstance="decap_port2" GenFromCktModel="cap"
-+            PositiveTerminal $Package.Node023::pwr
-+            NegativeTerminal $Package.Node21::gnd
-Port4_decap_port3_1::pwr Auto GenFromCktInstance="decap_port3" GenFromCktModel="cap"
-+            PositiveTerminal $Package.Node010::pwr
-+            NegativeTerminal $Package.Node012::gnd
-Port5_decap_port4_1::pwr Auto GenFromCktInstance="decap_port4" GenFromCktModel="cap"
+Port2_decap_port_1::pwr Auto GenFromCktInstance="decap_port" GenFromCktModel="cap"
 +            PositiveTerminal $Package.Node1::pwr
 +            NegativeTerminal $Package.Node08::gnd
 .EndPort
@@ -398,7 +356,7 @@ Port5_decap_port4_1::pwr Auto GenFromCktInstance="decap_port4" GenFromCktModel="
 
 * Frequency Sweeping description lines
 .FrequencySweep 1.000000e+01MHz 1.000000e+00GHz 1.000000e+01MHz Linear
-.FrequencyNew 1.000000e+07 1.000000e+09 2
+.FrequencyNew 1.000000e+04 2.000000e+09 2
 .DisplayFrequencyArray
 .SolutionFrequency 1.000000e+09
 

@@ -14,23 +14,32 @@ BASE_DIR = Path(__file__).resolve().parent
 # input_path = r"input files\board 1\b1.spd"
 # touchstone_path = r"input files\board 1\b1.S3P"
 
-# # Board 2
+# # # Board 2
 # stackup_path = r"input files\board 2\b2_stackup.csv"
 # input_path = r"input files\board 2\b2.spd"
 # touchstone_path = r"input files\board 2\b2.S5P"
+
+# # Board 2_2
+# stackup_path = r"input files\board 2.2\b2_2_stackup.csv"
+# input_path = r"input files\board 2.2\b2_2.spd"
+# touchstone_path = r"input files\board 2.2\b2_2.S2P"
 
 # # Board 3
 # stackup_path = r"input files\board 3\b3_stackup.csv"
 # input_path = r"input files\board 3\b3.spd"
 # touchstone_path = r"input files\board 3\b3.S3P"
 
-# Board 4.1
-stackup_path = r"input files\board 4.1\b4_1_stackup.csv"
-input_path = r"input files\board 4.1\b4_1.spd"
-touchstone_path = r"input files\board 4.1\b4_1.S3P"
+# # Board 4.1
+# stackup_path = r"input files\board 4.1\b4_1_stackup.csv"
+# input_path = r"input files\board 4.1\b4_1.spd"
+# touchstone_path = r"input files\board 4.1\b4_1.S3P"
 
 # # Board 5 - 6p power domains
 # stackup_path = r"input files\board 5\b5_stackup.csv"
 # input_path = r"input files\board 5\b5.spd"
 # touchstone_path = r"input files\board 5\b5.S6P"
 
+# # Board 6 
+stackup_path = r"input files\board 6\b6_stackup.csv"
+input_path = r"input files\board 6\b6.spd"
+touchstone_path = r"input files\board 6\b6.S2P"

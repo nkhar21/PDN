@@ -10,11 +10,12 @@ import os
 BRD_SNAP_DEC = 6
 
 def canon_node(name: str) -> str:
-    """
-    Normalize Node labels like 'Node01'/'Node001' → 'Node1'.
-    """
-    m = re.match(r"Node0*([1-9]\d*)$", name, flags=re.IGNORECASE)
-    return f"Node{m.group(1)}" if m else name
+    # """
+    # Normalize Node labels like 'Node01'/'Node001' → 'Node1'.
+    # """
+    # m = re.match(r"Node0*([1-9]\d*)$", name, flags=re.IGNORECASE)
+    # return f"Node{m.group(1)}" if m else name
+    return name.strip()
 
 def parse_spd(brd , spd_path: str, ground_net: str = "gnd", power_net: str = "pwr", 
               ic_port_tag="ic_port", decap_port_tag="decap_port", verbose: bool = False):

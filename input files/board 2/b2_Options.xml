@@ -1,0 +1,470 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Options>
+<Group Name = "File">
+	<Page Name = "General">
+		<AutoSaveInterval>0</AutoSaveInterval>
+		<SaveBeforeSimulation>false</SaveBeforeSimulation>
+		<SmoothMode2DView>true</SmoothMode2DView>
+		<SmoothMode3DView>false</SmoothMode3DView>
+	</Page>
+
+	<Page Name = "FileManager">
+<!--FileFolders>&#x0A;Tool bin folder: C:\Cadence\Sigrity2024.1\tools\bin\&#x0A;Install folder: C:\Cadence\Sigrity2024.1\tools&#x0A;Library folder: C:\Cadence\Sigrity2024.1\share\library&#x0A;Model library folder: C:\Cadence\Sigrity2024.1\share\library\circuits&#x0A;Material library folder: C:\Cadence\Sigrity2024.1\share\library\material&#x0A;Script library folder: C:\Cadence\Sigrity2024.1\share\library\script&#x0A;Template library folder: C:\Cadence\Sigrity2024.1\share\library\template\PowerDC&#x0A;Tcl/Tk library folder: C:\Cadence\Sigrity2024.1\share\library\tcl&#x0A;Python library folder: C:\Cadence\Sigrity2024.1\share\library\python\Lib&#x0A;Antenna library folder: C:\Cadence\Sigrity2024.1\share\library\antenna&#x0A;Vendor library folder: C:\Cadence\Sigrity2024.1\share\library\decap library&#x0A;Clarity solver schema: C:\Cadence\Sigrity2024.1\share\Clarity\config&#x0A;Tool output folder: C:\ProgramData\Cadence Design Systems, Inc.\LayoutWorkbench 24.1&#x0A;Tool log folder: C:\ProgramData\Cadence Design Systems, Inc.\LayoutWorkbench 24.1&#x0A;Tool temp folder: C:\Users\nkfzm\AppData\Local\Temp\&#x0A;Layout folder: C:\Users\nkfzm\OneDrive - University of Missouri\Desktop\Research\Code\PDN\input files\board 2\&#x0A;Case output folder: C:\Users\nkfzm\OneDrive - University of Missouri\Desktop\Research\Code\PDN\input files\board 2&#x0A;Case log folder: C:\Users\nkfzm\OneDrive - University of Missouri\Desktop\Research\Code\PDN\input files\board 2&#x0A;Case temp folder: C:\Users\nkfzm\AppData\Local\Temp\&#x0A;Allegro padpath: &#x0A;Streamlined PI model folder: &#x0A;</FileFolders-->
+		<LayoutAutoSaveFileName>[$L].spd.auto</LayoutAutoSaveFileName>
+		<SimulationAutoSaveOptionFileName>[$C]_Options.xml</SimulationAutoSaveOptionFileName>
+		<LayoutErrorFileName>[$L_T].err</LayoutErrorFileName>
+		<ElectricalResourceProfileLogName>ResourceProfile.log</ElectricalResourceProfileLogName>
+		<OutputMatrixFileTitle>[$C_MDY_hms_P]</OutputMatrixFileTitle>
+		<LayoutAutoSaveFileNameBefore>[$L_P]_SavedBeforeSimu.spd.auto</LayoutAutoSaveFileNameBefore>
+		<SpiceNetListCktFileName>SpiceNetlist.ckt</SpiceNetListCktFileName>
+		<OutputNetworkTemplateName>[$L]_Network_Template.xml</OutputNetworkTemplateName>
+		<ImpedanceCouplingCheckingResult>[$C]_Trace/TraceCKResult_[$C_MDY_hms]</ImpedanceCouplingCheckingResult>
+		<OutputWindowLogName>OWindowContents.log</OutputWindowLogName>
+		<RuntimeErrorLogName>RunTimeError.log</RuntimeErrorLogName>
+		<CpuInfoLogName>CPU_Info.log</CpuInfoLogName>
+	</Page>
+
+	<Page Name = "SaveOptions">
+		<ErrorChecking>false</ErrorChecking>
+		<SkipWarningsInErrorLogFile>false</SkipWarningsInErrorLogFile>
+		<ShowOptionsWhenSave>false</ShowOptionsWhenSave>
+		<ShowOptionsWhenSaveAs>false</ShowOptionsWhenSaveAs>
+	</Page>
+
+	<Page Name = "Hotkeys">
+<!--AccelTable>&#x0A;Deletes the selected objects.: Del&#x0A;Transfers tiny shape to pad.: Ctrl+Shift+P&#x0A;Transfers the trace to shape.: Ctrl+Shift+T&#x0A;Simplifies all polygons in the design.: Alt+A&#x0A;Creates a new document.: Ctrl+N&#x0A;Opens an existing document.: Ctrl+O&#x0A;Prints the active document.: Ctrl+P&#x0A;Saves the active project.: Ctrl+S&#x0A;Exports to the image File.: Ctrl+E&#x0A;Finds the objects by name.: Ctrl+F&#x0A;Hooks the selected package nodes to the selected port as negative poles: Alt+N&#x0A;Hooks the selected package nodes to the selected port as positive poles: Alt+P&#x0A;Identifies the victim objects.: Ctrl+F9&#x0A;Moves the selected objects.: Ctrl+G&#x0A;Copies the selected objects.: Ctrl+C&#x0A;Selects the shape, component, trace, via and/or node.: Ctrl+Q&#x0A;Sets the flag of the output temp file.: Ctrl+F3&#x0A;Shows or hides the overlapping voltage distribution.: Ctrl+Shift+D&#x0A;Redo.: Ctrl+Y&#x0A;Undo.: Ctrl+Z&#x0A;Sets flag of the copying object by different net.: Ctrl+F12&#x0A;Toggles the displaying trace as a flat terminal.: Ctrl+R&#x0A;Shows or hides the triangle mesh.: Ctrl+Shift+M&#x0A;Shows or hides the outline of geometry.: Ctrl+Shift+O&#x0A;Shows or hides the trace break point.: Ctrl+B&#x0A;Toggles using the partial selection rule.: F11&#x0A;Zooms in the selected area.: F2&#x0A;Zooms back.: F3&#x0A;Zooms in.: F4&#x0A;Zooms out.: F5&#x0A;Zooms the selected items.: F7&#x0A;Creates and modifies the circuit definitions; links circuit nodes to package nodes.: Alt+C&#x0A;Sets up the options.: Alt+O&#x0A;Opens the net manager dialog box.: Ctrl+Alt+N&#x0A;Shows or hides the workflow pane.: Alt+W&#x0A;Opens the layer selection dialog box.: Alt+L&#x0A;Shows or hides the output pane.: Alt+U&#x0A;</AccelTable-->
+	</Page>
+
+</Group>
+
+
+<Group Name = "Layout">
+	<Page Name = "GridAndUnit">
+		<LayoutUnit>mm</LayoutUnit>
+		<SnapToGrid>false</SnapToGrid>
+		<XGridSize>1</XGridSize>
+		<YGridSize>1</YGridSize>
+	</Page>
+
+	<Page Name = "View">
+		<ObjectOutLineColor>8421504</ObjectOutLineColor>
+		<ObjectOutLineColorName>GRAY</ObjectOutLineColorName>
+		<LayerOpacity>50</LayerOpacity>
+		<RulerFont>Height:-11,Width:0,Escapement:0,Orientation:0,Weight:400,Italic:false,Underline:false,StrikeOut:false,CharSet:0,OutPrecision:3,ClipPrecision:2,Quality:1,PitchAndFamily:34,FaceName:Arial</RulerFont>
+		<TraceColor>BLUE</TraceColor>
+		<ViaColor>GREEN</ViaColor>
+		<PlaneColor>LIME</PlaneColor>
+		<LayoutBKColor>false</LayoutBKColor>
+		<LayoutLightness>-25</LayoutLightness>
+	</Page>
+
+	<Page Name = "Processing">
+		<PolygonSimplificationThreshold_m>0.0001</PolygonSimplificationThreshold_m>
+		<MarginForCutByNets_m>0.01</MarginForCutByNets_m>
+		<SmoothFactorForCutByNets_m>0.5</SmoothFactorForCutByNets_m>
+		<AutoViaConnection>false</AutoViaConnection>
+		<ThermalTracePadTraceToShapeFactor>2</ThermalTracePadTraceToShapeFactor>
+		<ThermalTracePadShapeToShapeThreshold>0.001</ThermalTracePadShapeToShapeThreshold>
+		<ViaAntipadSearchFactor>0</ViaAntipadSearchFactor>
+		<ViaAntipadDistanceRangeFactor>1</ViaAntipadDistanceRangeFactor>
+		<ConvertDIMMFingerPadToTraces>false</ConvertDIMMFingerPadToTraces>
+		<MaxPadSize>-1</MaxPadSize>
+		<MaxPadSizeRelative>-1</MaxPadSizeRelative>
+		<MinShapeSize>-1</MinShapeSize>
+		<ApplyToPwrGndNets>true</ApplyToPwrGndNets>
+		<ApplyToSignalNets>true</ApplyToSignalNets>
+	</Page>
+
+	<Page Name = "Trace">
+		<TrapezoidalTraceAngle_d>90</TrapezoidalTraceAngle_d>
+		<ConductorRoughnessRootMeanSquare>0</ConductorRoughnessRootMeanSquare>
+		<IsHalfSmoothConductor>false</IsHalfSmoothConductor>
+		<DefaultPercentageCoupling>2</DefaultPercentageCoupling>
+		<DefaultRiseTime>100</DefaultRiseTime>
+	</Page>
+
+	<Page Name = "ErrorChecking">
+		<FloatingNodes>true</FloatingNodes>
+		<InvalidVoltageObservation>false</InvalidVoltageObservation>
+		<ShortCircuit>true</ShortCircuit>
+		<OpenCircuit>true</OpenCircuit>
+		<InvalidCircuitvoltageobservation>false</InvalidCircuitvoltageobservation>
+		<ShowErrorsOnLayout>true</ShowErrorsOnLayout>
+		<PopupShortCircuitsFound>true</PopupShortCircuitsFound>
+		<GeometryError>true</GeometryError>
+		<ToolDependency>false</ToolDependency>
+		<MeshGeometryError>false</MeshGeometryError>
+		<ViaPlacement>true</ViaPlacement>
+		<NodePlacement>true</NodePlacement>
+		<IgnoreREFPlaneShortWarning>false</IgnoreREFPlaneShortWarning>
+		<EnableWarningDisplayLimit>true</EnableWarningDisplayLimit>
+	</Page>
+
+	<Page Name = "Translator">
+		<TranslateMixedLayerTo>Plane or Signal</TranslateMixedLayerTo>
+		<IncludeEtchNoNetNames>true</IncludeEtchNoNetNames>
+		<RemoveNonFunctionalPads>1</RemoveNonFunctionalPads>
+		<TreatAntipadAsVoids>false</TreatAntipadAsVoids>
+		<TreatPadOnDielectricLayerAsDrill>false</TreatPadOnDielectricLayerAsDrill>
+		<PartialCktNameBaseOnPartNo>false</PartialCktNameBaseOnPartNo>
+		<PartialCktNameBaseOnSignalModel>false</PartialCktNameBaseOnSignalModel>
+		<UseCustomPartialCktName>false</UseCustomPartialCktName>
+		<TraceLimitLength>0</TraceLimitLength>
+		<MaxArcSegLength>0.0002</MaxArcSegLength>
+		<PlatingThickness>0</PlatingThickness>
+		<ComponentOutline>true</ComponentOutline>
+		<IncludeOutline>false</IncludeOutline>
+		<CreateZeroDrillVia>false</CreateZeroDrillVia>
+		<MetalLayerThicknessPlating>false</MetalLayerThicknessPlating>
+		<ConvertStaticShape>false</ConvertStaticShape>
+		<IgnoreComponentValue>false</IgnoreComponentValue>
+		<IgnoreMultiTerminalValue>false</IgnoreMultiTerminalValue>
+		<SoldermaskDielectricBlock>false</SoldermaskDielectricBlock>
+		<CoverlayDielectricBlock>false</CoverlayDielectricBlock>
+		<FullContact4ThermalRelief>false</FullContact4ThermalRelief>
+		<TranslateOnlyVoltageNets>false</TranslateOnlyVoltageNets>
+		<UseVoltageToClassifyNet>false</UseVoltageToClassifyNet>
+		<KeepPlatedMechPins>false</KeepPlatedMechPins>
+		<AddDefaultBumps>-1</AddDefaultBumps>
+		<ShowSelectNetsDialog>false</ShowSelectNetsDialog>
+		<ShowSelectVariantDialog>false</ShowSelectVariantDialog>
+		<ShowSelectTechFileDialog>false</ShowSelectTechFileDialog>
+		<UseVoidPatternForLargeXhatchShape>false</UseVoidPatternForLargeXhatchShape>
+		<SupportMetalTouchMetalStackup>false</SupportMetalTouchMetalStackup>
+		<ConvertDotCharTo_Dot_>false</ConvertDotCharTo_Dot_>
+		<UseBackdrillInDesign>false</UseBackdrillInDesign>
+		<SaveDesignToSpdxFile>false</SaveDesignToSpdxFile>
+		<FixOverlappedZoneShape>false</FixOverlappedZoneShape>
+		<AssignUndefinedZone>false</AssignUndefinedZone>
+		<CopyMasterRigidflexLayerShape>false</CopyMasterRigidflexLayerShape>
+		<TranslateEMISelectedPlating>0</TranslateEMISelectedPlating>
+		<TranslateEMIShield>0</TranslateEMIShield>
+		<EMI_top_coverlay>soldermask_top</EMI_top_coverlay>
+		<EMI_bottom_coverlay>soldermask_bottom</EMI_bottom_coverlay>
+		<IncludeCutoutObject>true</IncludeCutoutObject>
+		<DegassingHoleAsVoid>false</DegassingHoleAsVoid>
+		<AdvCktParser>true</AdvCktParser>
+	</Page>
+
+</Group>
+
+
+<Group Name = "3DLayoutView">
+	<Page Name = "Display">
+		<BackgroundColor>0xD2DCE6</BackgroundColor>
+		<LineColor>BLACK</LineColor>
+		<NodeColor>0x2CCCD3</NodeColor>
+		<SelectedNodeColor>0xFF4616</SelectedNodeColor>
+		<AntiPadDisplay>Outline</AntiPadDisplay>
+		<WalkPace_um_Step>50</WalkPace_um_Step>
+		<CameraDistance_um>500</CameraDistance_um>
+		<CameraAngle_d>50</CameraAngle_d>
+	</Page>
+
+	<Page Name = "Quality">
+		<CurrentQuality>MediumHigh</CurrentQuality>
+		<CustomizedQuality>false</CustomizedQuality>
+		<PkgElementPrecision>2</PkgElementPrecision>
+		<SimpleModelForAllStructures>false</SimpleModelForAllStructures>
+		<SimpleModelForDisabledNets>false</SimpleModelForDisabledNets>
+		<SimpleModelForInvisibleLayers>false</SimpleModelForInvisibleLayers>
+		<SimpleModelAllButAtciveLayer>false</SimpleModelAllButAtciveLayer>
+		<DisplayVoidsAsOutlines>false</DisplayVoidsAsOutlines>
+	</Page>
+
+</Group>
+
+
+<Group Name = "BasicSimulation">
+	<Page Name = "General">
+		<AutoSaveResult>true</AutoSaveResult>
+		<AutoSaveWorkspace>true</AutoSaveWorkspace>
+		<AutoOutputPassiveFile>false</AutoOutputPassiveFile>
+		<KeepPassiveResultOnly>false</KeepPassiveResultOnly>
+		<AutoCheckSparaByBBS>false</AutoCheckSparaByBBS>
+		<AutoSaveDistribution>false</AutoSaveDistribution>
+		<MaxCPU>20</MaxCPU>
+		<MaxCPUPer>100</MaxCPUPer>
+		<CPUNumOrPer>false</CPUNumOrPer>
+		<AutoGenSaveReport>false</AutoGenSaveReport>
+		<ProcessPriority>Normal</ProcessPriority>
+		<SparamFreqRangeOutOfSimulationRange>-1</SparamFreqRangeOutOfSimulationRange>
+		<AutoSaveExtracedSuCircuitToAmmLib>false</AutoSaveExtracedSuCircuitToAmmLib>
+	</Page>
+
+	<Page Name = "NetAndCoupling">
+		<KeepShapesOfDisabledNets>false</KeepShapesOfDisabledNets>
+		<UseGroupedPinsInMCPHeader>false</UseGroupedPinsInMCPHeader>
+		<DisableCPLSimulation>false</DisableCPLSimulation>
+	</Page>
+
+	<Page Name = "NetworkParameters">
+		<PowerNetPortImpedance>50</PowerNetPortImpedance>
+		<SignalNetPortImpedance>50</SignalNetPortImpedance>
+		<OutputFormat>2</OutputFormat>
+		<VirtuosoSDECompatibility>0</VirtuosoSDECompatibility>
+		<AutoSavePartialResults>false</AutoSavePartialResults>
+	</Page>
+
+	<Page Name = "SpecialVoid">
+		<DoglegHoleThreshold_m>0.0015</DoglegHoleThreshold_m>
+		<ThermalHoleThreshold_m>0.0015</ThermalHoleThreshold_m>
+		<SmallHoleThreshold_m>0.0015</SmallHoleThreshold_m>
+		<ViaHoleThreshold_m>0.0015</ViaHoleThreshold_m>
+		<AutoSpecialVoid>false</AutoSpecialVoid>
+		<SlenderHoleAreaThreshold>0</SlenderHoleAreaThreshold>
+		<SlenderHoleSizeThreshold>0</SlenderHoleSizeThreshold>
+	</Page>
+
+	<Page Name = "SpecialVoid_3DFEM">
+		<DoglegHoleThreshold_m_3DFEM>0</DoglegHoleThreshold_m_3DFEM>
+		<ThermalHoleThreshold_m_3DFEM>0</ThermalHoleThreshold_m_3DFEM>
+		<SmallHoleThreshold_m_3DFEM>0</SmallHoleThreshold_m_3DFEM>
+		<ViaHoleThreshold_m_3DFEM>0</ViaHoleThreshold_m_3DFEM>
+		<SlenderHoleAreaThreshold_m_3DFEM>0</SlenderHoleAreaThreshold_m_3DFEM>
+		<SlenderHoleSizeThreshold_m_3DFEM>0</SlenderHoleSizeThreshold_m_3DFEM>
+	</Page>
+
+	<Page Name = "AutoResultSaving">
+		<AutoSaveSimulationResult>false</AutoSaveSimulationResult>
+		<AutoSaveSimulationResultTable>false</AutoSaveSimulationResultTable>
+		<AutoSave3DDistributionPlots>false</AutoSave3DDistributionPlots>
+		<AutoExportDist2Txt>false</AutoExportDist2Txt>
+		<AutoSaveDistributionPlots>false</AutoSaveDistributionPlots>
+		<SaveVoltageDistributionPlot>true</SaveVoltageDistributionPlot>
+		<SavePlaneCurrentDensityPlot>true</SavePlaneCurrentDensityPlot>
+		<SavePlanePowerDensityPlot>true</SavePlanePowerDensityPlot>
+		<SavePowerLossPlot>true</SavePowerLossPlot>
+		<SavePinIRdropPlot>true</SavePinIRdropPlot>
+		<SavePinResistPlot>true</SavePinResistPlot>
+		<SaveTemperaturePlot>true</SaveTemperaturePlot>
+		<AutoSaveSignOffReport>false</AutoSaveSignOffReport>
+		<DisableSavingResult2OutputDirectory>false</DisableSavingResult2OutputDirectory>
+		<ProcessPriority>Normal</ProcessPriority>
+	</Page>
+
+	<Page Name = "EnhancedCktTopo">
+		<EnhancedCircuitTopo>false</EnhancedCircuitTopo>
+	</Page>
+
+	<Page Name = "OutPutSInTouchStone">
+		<S_in_Touchstone>false</S_in_Touchstone>
+		<S_in_AFS>false</S_in_AFS>
+	</Page>
+
+	<Page Name = "Radiation">
+	</Page>
+
+	<Page Name = "PlaneWaveSource">
+		<E0ValueForPlaneWaveSource>0</E0ValueForPlaneWaveSource>
+		<ThetaValueForPlaneWaveSource>0</ThetaValueForPlaneWaveSource>
+		<PhiValueForPlaneWaveSource>0</PhiValueForPlaneWaveSource>
+		<AngleE0ValueForPlaneWaveSource>0</AngleE0ValueForPlaneWaveSource>
+	</Page>
+
+	<Page Name = "SimulationReport">
+		<HTMLTemplate>C:\Cadence\Sigrity2024.1\share\library\template\PowerDC\PowerDC_Report_Template_Default.htm</HTMLTemplate>
+		<SpdFileNameAndLocation>true</SpdFileNameAndLocation>
+		<BoardStackup>true</BoardStackup>
+		<LayoutTopBottomLayerView>true</LayoutTopBottomLayerView>
+		<SimulationSetup>true</SimulationSetup>
+		<ResultTable>true</ResultTable>
+		<ResistanceMeasurement>false</ResistanceMeasurement>
+		<BlockDiagram>true</BlockDiagram>
+		<ActualVoltage>true</ActualVoltage>
+		<VoltageReferringToVrm>true</VoltageReferringToVrm>
+		<Current>true</Current>
+		<IRDropSimulated>true</IRDropSimulated>
+		<Specification>true</Specification>
+		<PassFail>true</PassFail>
+		<ViaInformation>true</ViaInformation>
+		<ViaMaxNumber>100</ViaMaxNumber>
+		<PlaneInformation>true</PlaneInformation>
+		<PlaneMaxNumber>50</PlaneMaxNumber>
+		<TraceInformation>true</TraceInformation>
+		<TraceMaxNumber>100</TraceMaxNumber>
+		<VoltagePlot>true</VoltagePlot>
+		<CurrentDensityPlot>false</CurrentDensityPlot>
+		<CurrentPlot>false</CurrentPlot>
+		<PowerLossPlot>false</PowerLossPlot>
+		<PowerDensityPlot>false</PowerDensityPlot>
+		<IRropPlot>false</IRropPlot>
+		<PinResistancePlot>false</PinResistancePlot>
+		<OnePlotForEachPGNet>false</OnePlotForEachPGNet>
+		<ZoomFitOnPlot>false</ZoomFitOnPlot>
+		<ManuallyCapturePlot>false</ManuallyCapturePlot>
+		<TemperaturePlot>false</TemperaturePlot>
+		<HeatFluxPlot>false</HeatFluxPlot>
+		<ConductivityPlot>false</ConductivityPlot>
+		<FusionCurrentDensityPlot>false</FusionCurrentDensityPlot>
+		<MeanTimeToFailurePlot>false</MeanTimeToFailurePlot>
+		<DisplacementPlot>false</DisplacementPlot>
+		<StressPlot>false</StressPlot>
+		<VerticalRangeControl>false</VerticalRangeControl>
+		<VerticalRangeScale>false</VerticalRangeScale>
+		<Sacle>85</Sacle>
+		<ShowPlotsBelowScale>false</ShowPlotsBelowScale>
+		<UseNominalVoltage>false</UseNominalVoltage>
+		<AreaBase>false</AreaBase>
+		<ShowHotSpots>false</ShowHotSpots>
+		<ShowColdSpots>false</ShowColdSpots>
+		<IgnoreLayersWithoutPlane>false</IgnoreLayersWithoutPlane>
+	</Page>
+
+	<Page Name = "OutputSPICECircuit">
+		<NetNameIncludeInCircuitNodeName>false</NetNameIncludeInCircuitNodeName>
+		<PowerGndHasPartialInductance>false</PowerGndHasPartialInductance>
+		<KeepAllCouplingTermsToPowerNets>false</KeepAllCouplingTermsToPowerNets>
+		<ExportLCMatrices>false</ExportLCMatrices>
+		<OutputIBISPkgFileForMultiDiePkg>false</OutputIBISPkgFileForMultiDiePkg>
+		<NotOutputT_PI_SpiceModel>true</NotOutputT_PI_SpiceModel>
+		<IncludeDecapsInSpiceCkt>false</IncludeDecapsInSpiceCkt>
+		<PinBasedRefPinsHasPartialInductance>false</PinBasedRefPinsHasPartialInductance>
+		<CktNodeNameFormat>false</CktNodeNameFormat>
+		<SPEFRCModel>false</SPEFRCModel>
+		<OutputSPEFRCOnly>false</OutputSPEFRCOnly>
+		<VirtuSDPCompatible>false</VirtuSDPCompatible>
+		<PinbasedPrecision>0</PinbasedPrecision>
+		<SpecifyFreqTables>false</SpecifyFreqTables>
+		<Pinbased_DCR_Series>false</Pinbased_DCR_Series>
+		<Pinbased_Ignore_Self_MutualL>0</Pinbased_Ignore_Self_MutualL>
+		<EnableDCAccurateMode>0</EnableDCAccurateMode>
+		<Pinbased_output_PerpinTable>0</Pinbased_output_PerpinTable>
+		<SPEFRCModelType>0</SPEFRCModelType>
+		<SPEFRCDesign>BGA</SPEFRCDesign>
+		<SPEFRCConnUnit>0</SPEFRCConnUnit>
+	</Page>
+
+</Group>
+
+
+<Group Name = "AdvancedSimulation">
+	<Page Name = "Temperature">
+		<Temperature>25</Temperature>
+	</Page>
+
+	<Page Name = "TreatPasAsShape">
+		<TreatPasAsShape>Partial Pads as Shape</TreatPasAsShape>
+		<ConnectObject>true</ConnectObject>
+		<CheckArea>false</CheckArea>
+		<Area>0</Area>
+		<CheckAutoAddPinSize>false</CheckAutoAddPinSize>
+		<CheckAutoAddNodesOnPads>false</CheckAutoAddNodesOnPads>
+		<NodeGapForPad>5.08e-05</NodeGapForPad>
+		<MinNodeNumForPad>6</MinNodeNumForPad>
+	</Page>
+
+	<Page Name = "Mesh">
+		<MaxMeshEdgeLength_m>0.001</MaxMeshEdgeLength_m>
+		<SimplifyGeometry>true</SimplifyGeometry>
+		<AlignGeometry>false</AlignGeometry>
+		<AlignAbsorb>1e-06</AlignAbsorb>
+		<CoarseMesh>false</CoarseMesh>
+		<Enable3DVia>false</Enable3DVia>
+		<Mesh3DViaSize>0.00032</Mesh3DViaSize>
+		<EnableSolidViasOnly>true</EnableSolidViasOnly>
+		<EnableAdaptiveMesh>false</EnableAdaptiveMesh>
+		<MeshIterationNumber>5</MeshIterationNumber>
+		<TopLargestPowerLossElements>1</TopLargestPowerLossElements>
+		<MeshDisplay>false</MeshDisplay>
+	</Page>
+
+	<Page Name = "Thermal">
+		<ThermalTemperature>25</ThermalTemperature>
+		<ThermalTempUseDefined>false</ThermalTempUseDefined>
+		<ThermalTempPCBTopValueOrFile>true</ThermalTempPCBTopValueOrFile>
+		<ThermalTempPCBTopVal>25</ThermalTempPCBTopVal>
+		<ThermalTempPCBBottomValueOrFile>true</ThermalTempPCBBottomValueOrFile>
+		<ThermalTempPCBBottomVal>25</ThermalTempPCBBottomVal>
+		<ThermalAirVelocity>0</ThermalAirVelocity>
+		<ThermalVelUseDefined>false</ThermalVelUseDefined>
+		<ThermalTempPCBTopValueOrFile>true</ThermalTempPCBTopValueOrFile>
+		<ThermalTempPCBTopVal>0</ThermalTempPCBTopVal>
+		<ThermalTempPCBBottomValueOrFile>true</ThermalTempPCBBottomValueOrFile>
+		<ThermalTempPCBBottomVal>0</ThermalTempPCBBottomVal>
+		<ThermalBoardOrientation>0</ThermalBoardOrientation>
+		<ThermalUseDefined>false</ThermalUseDefined>
+		<ThermalHTC0UseDefined>false</ThermalHTC0UseDefined>
+		<ThermalHTCPCBBottomValueOrFile>true</ThermalHTCPCBBottomValueOrFile>
+		<ThermalHTCPCBBottomValue>0</ThermalHTCPCBBottomValue>
+		<ThermalHTC1UseDefined>false</ThermalHTC1UseDefined>
+		<ThermalHTCPCBTopValueOrFile>true</ThermalHTCPCBTopValueOrFile>
+		<ThermalHTCPCBTopValue>0</ThermalHTCPCBTopValue>
+		<ThermalHTC2UseDefined>false</ThermalHTC2UseDefined>
+		<ThermalHTCPKGTop>0</ThermalHTCPKGTop>
+		<ThermalHTC3UseDefined>false</ThermalHTC3UseDefined>
+		<ThermalHTCPKGSide>0</ThermalHTCPKGSide>
+	</Page>
+
+	<Page Name = "SpecialHandling">
+		<AllowNegativeElement>false</AllowNegativeElement>
+		<AFSMultiThreadMatrixSolver>false</AFSMultiThreadMatrixSolver>
+		<AutoGenInterComp>false</AutoGenInterComp>
+		<DefaultResistance>0.01</DefaultResistance>
+		<DisableDiscreteBetweenPowerAndGround>false</DisableDiscreteBetweenPowerAndGround>
+		<PowerGroundResistanceThreshold>10</PowerGroundResistanceThreshold>
+		<EnableSinkBetweenPowerNets>false</EnableSinkBetweenPowerNets>
+		<RemoveLargeResistance>false</RemoveLargeResistance>
+		<LargeResistanceSize>1e+06</LargeResistanceSize>
+		<TraceWidth>0</TraceWidth>
+		<EnableAutoGenerateTwoPinDiscrete>true</EnableAutoGenerateTwoPinDiscrete>
+		<ByPassYesNoCancel>0</ByPassYesNoCancel>
+		<SinkPassFailRules>Use sink nominal voltage and sink lower tolerance only</SinkPassFailRules>
+		<IgnoreAllCurrentSource>false</IgnoreAllCurrentSource>
+		<EnableTopFloating>false</EnableTopFloating>
+		<EnableBottomFloating>false</EnableBottomFloating>
+		<TopFloatingDistance>1e-05</TopFloatingDistance>
+		<BottomFloatingDistance>1e-05</BottomFloatingDistance>
+		<UseDefaultFloatingDistance>false</UseDefaultFloatingDistance>
+		<AFSConvergenceCriteria>0.0003</AFSConvergenceCriteria>
+		<ReusePreFreqPts>false</ReusePreFreqPts>
+	</Page>
+
+	<Page Name = "AccuracyMode">
+		<EnableAccuracyMode>false</EnableAccuracyMode>
+	</Page>
+
+</Group>
+
+
+<Group Name = "AdvancedOptimization">
+	<Page Name = "TerminationCriteria">
+		<MaxIterationNumber>500</MaxIterationNumber>
+		<Tolerance>0.01</Tolerance>
+		<RefreshTime_Mins>180</RefreshTime_Mins>
+	</Page>
+
+	<Page Name = "MaxDecaps">
+		<MaxDecaps>100</MaxDecaps>
+	</Page>
+
+	<Page Name = "ExtractionFrequency">
+		<ExtractFreq>1e+06</ExtractFreq>
+	</Page>
+
+	<Page Name = "OtherOptions">
+		<ShowImpedance>false</ShowImpedance>
+		<ShowOptimizationHistory>false</ShowOptimizationHistory>
+		<ResumeOptimization>false</ResumeOptimization>
+		<ImpedanceMeasure>true</ImpedanceMeasure>
+		<AutoWeighting>true</AutoWeighting>
+		<AutoLoadCorporate>true</AutoLoadCorporate>
+		<OptimizationType>true</OptimizationType>
+		<EnableDefaultCurveProperty>false</EnableDefaultCurveProperty>
+		<DefaultImpedanceCurveProperty>Type:2,Color:DEEPSKYBLUE,LineStyle:0,LineWidth:2,MarkRadtio:0,MarkType:0,Pattern:0,MarkInterval:0,Type:3,Color:DARKMAGENTA,LineStyle:0,LineWidth:2,MarkRadtio:0,MarkType:0,Pattern:0,MarkInterval:0,Type:4,Color:DEEPSKYBLUE,LineStyle:1,LineWidth:2,MarkRadtio:0,MarkType:0,Pattern:0,MarkInterval:0,Type:5,Color:DARKMAGENTA,LineStyle:2,LineWidth:2,MarkRadtio:0,MarkType:1,Pattern:0,MarkInterval:2,Name:Impedance</DefaultImpedanceCurveProperty>
+		<DefaultTargetZCurveProperty>Type:2,Color:0xFF4616,LineStyle:0,LineWidth:2,MarkRadtio:0,MarkType:0,Pattern:0,MarkInterval:0,Type:3,Color:0xFF4616,LineStyle:0,LineWidth:2,MarkRadtio:0,MarkType:0,Pattern:0,MarkInterval:0,Type:4,Color:0xFF4616,LineStyle:1,LineWidth:2,MarkRadtio:0,MarkType:0,Pattern:0,MarkInterval:0,Type:5,Color:0xFF4616,LineStyle:2,LineWidth:2,MarkRadtio:0,MarkType:1,Pattern:0,MarkInterval:2,Name:Impedance</DefaultTargetZCurveProperty>
+		<DefaultVrmCurveProperty>Type:2,Color:0xA020F0,LineStyle:0,LineWidth:2,MarkRadtio:0,MarkType:0,Pattern:0,MarkInterval:0,Type:3,Color:HOTPINK,LineStyle:0,LineWidth:2,MarkRadtio:0,MarkType:0,Pattern:0,MarkInterval:0,Type:4,Color:0xA020F0,LineStyle:1,LineWidth:2,MarkRadtio:0,MarkType:0,Pattern:0,MarkInterval:0,Type:5,Color:HOTPINK,LineStyle:2,LineWidth:2,MarkRadtio:0,MarkType:1,Pattern:0,MarkInterval:2,Name:Impedance</DefaultVrmCurveProperty>
+	</Page>
+
+</Group>
+
+
+<Group Name = "InternalOptions">
+	<Page Name = "FloatingOperationPrecision">
+		<GeometricObjectPrecisionExp>7</GeometricObjectPrecisionExp>
+	</Page>
+
+</Group>
+
+
+</Options>

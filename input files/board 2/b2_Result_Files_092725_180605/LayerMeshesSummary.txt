@@ -1,0 +1,56 @@
+[Layer Name] Signal06
+[Original Node Count] 4
+[Package Node Count] 4
+[Polygon Count] 3
+[On Plane Via Count] 2
+[Triangle Count] 2774
+[FEM Node Count] 1514
+[Maximum Mesh Length] 0.001000
+
+[Layer Name] Signal05
+[Original Node Count] 4
+[Package Node Count] 4
+[Polygon Count] 3
+[On Plane Via Count] 4
+[Triangle Count] 2743
+[FEM Node Count] 1492
+[Maximum Mesh Length] 0.001000
+
+[Layer Name] Signal04
+[Original Node Count] 3
+[Package Node Count] 3
+[Polygon Count] 3
+[On Plane Via Count] 3
+[Triangle Count] 2724
+[FEM Node Count] 1479
+[Maximum Mesh Length] 0.001000
+
+[Layer Name] Signal03
+[Original Node Count] 3
+[Package Node Count] 3
+[Polygon Count] 3
+[On Plane Via Count] 3
+[Triangle Count] 2725
+[FEM Node Count] 1481
+[Maximum Mesh Length] 0.001000
+
+[Layer Name] Signal02
+[Original Node Count] 4
+[Package Node Count] 4
+[Polygon Count] 4
+[On Plane Via Count] 4
+[Triangle Count] 2911
+[FEM Node Count] 1584
+[Maximum Mesh Length] 0.001000
+
+[Layer Name] Signal01
+[Original Node Count] 6
+[Package Node Count] 6
+[Polygon Count] 4
+[On Plane Via Count] 3
+[Triangle Count] 2916
+[FEM Node Count] 1606
+[Maximum Mesh Length] 0.001000
+
+[Total Fem Node Count] 9156
+[Total Triangle Count] 16793
