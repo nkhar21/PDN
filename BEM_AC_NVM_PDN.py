@@ -1088,6 +1088,8 @@ class PDN():
         self.sxy = np.array([])  # S*4 matrix
         self.area = np.array([])  # plane area
 
+        self.bxy = np.array([])
+
         self.via_r = 0.2e-3
 
 

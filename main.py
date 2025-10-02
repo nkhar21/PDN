@@ -43,7 +43,7 @@ def gen_brd_data(
         brd.buried_via_type = buried_via_type
     else:
         raise ValueError(f"Unexpected return count from parse_spd: {len(result)}")
-
+    
     # --- 2) Board boundary segments (unchanged logic) ---
     brd.sxy = np.concatenate([brd.seg_bd_node(single_bxy, d) for single_bxy in brd.bxy], axis=0)
     brd.sxy_index_ranges = []
@@ -60,23 +60,23 @@ def gen_brd_data(
     brd.die_t = die_t
     brd.d_r = d_r
 
-    # --- 4) Z computation (unchanged) ---
-    res_matrix = main_res(
-        brd=brd,
-        die_t=die_t,
-        d=d_r,
-        stackup=brd.stackup,
-        start_layer=brd.start_layers,
-        stop_layer=brd.stop_layers,
-        decap_via_type=brd.decap_via_type,
-        decap_via_xy=brd.decap_via_xy,
-        decap_via_loc=brd.decap_via_loc,
-        ic_via_xy = brd.ic_via_xy,
-        ic_via_loc = brd.ic_via_loc,
-        ic_via_type = brd.ic_via_type
-    )
+#    --- 4) Z computation (unchanged) ---
+    # res_matrix = main_res(
+    #     brd=brd,
+    #     die_t=die_t,
+    #     d=d_r,
+    #     stackup=brd.stackup,
+    #     start_layer=brd.start_layers,
+    #     stop_layer=brd.stop_layers,
+    #     decap_via_type=brd.decap_via_type,
+    #     decap_via_xy=brd.decap_via_xy,
+    #     decap_via_loc=brd.decap_via_loc,
+    #     ic_via_xy = brd.ic_via_xy,
+    #     ic_via_loc = brd.ic_via_loc,
+    #     ic_via_type = brd.ic_via_type
+    # )
 
-    z = brd.calc_z_fast(res_matrix=res_matrix, verbose=True)
+    z = brd.calc_z_fast(res_matrix=None, verbose=True)
     
     
     result_out = [
