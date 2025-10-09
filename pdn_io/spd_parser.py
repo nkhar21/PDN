@@ -133,7 +133,6 @@ def _read(path: str, verbose: bool = False) -> str:
             if verbose:
                 print(f"[SPD_READ] Successfully read SPD file: {path}")
                 print(f"[SPD_READ] File length: {len(text)} characters")
-                print(f"[SPD_READ] First 200 chars:\n{text[:200]}")
                 print("-------------------------------------------")
             return text
     except UnicodeDecodeError:

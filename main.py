@@ -60,7 +60,7 @@ def gen_brd_data(
     brd.die_t = die_t
     brd.d_r = d_r
 
-#    --- 4) Z computation (unchanged) ---
+# #   --- 4) Z computation (unchanged) ---
     # res_matrix = main_res(
     #     brd=brd,
     #     die_t=die_t,

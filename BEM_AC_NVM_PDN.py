@@ -399,163 +399,232 @@ def org_merge_pdn(stackup, via_type, start_layer, stop_layer,
     port_node = -1 * np.ones((max(max_value(top_port_num), max_value(bot_port_num)) + 1,
                               2))  # positive node and negative node for different ports
     port_grp_node_num = -1 * np.ones((int(np.max([np.max(top_port_grp),
-                                                  np.max(bot_port_grp)])) + 1,
-                                      3))  # node num, node type (1 or 0), layer number of the port groups
+                            np.max(bot_port_grp)])) + 1,3))  # node num, node type (1 or 0), layer number of the port groups
 
     branch_n = 0
     node_n = -1
 
-    for via_n in range(0, via_type.shape[0]):
-        for cavity_n in range(start_layer[via_n], stop_layer[via_n]):
+    for via_n in range(0, via_type.shape[0]):  # iterate over all vias in the design
+        for cavity_n in range(start_layer[via_n], stop_layer[via_n]):  # iterate over each cavity that via passes through
+            
+            # ============================================================
+            # CASE 1 — Via starts at top layer (layer 0) through an antipad,
+            #          and it is NOT part of a port group.
+            #          (e.g. standalone decap or IC via with its own port)
+            # ============================================================
+            if cavity_n == start_layer[via_n] and start_layer[via_n] == 0 \
+                    and stackup[start_layer[via_n]] != via_type[via_n] \
+                    and top_port_grp[via_n] == -1:
 
-            if cavity_n == start_layer[via_n] and start_layer[via_n] == 0 and stackup[start_layer[via_n]] != \
-                                                            via_type[via_n] and top_port_grp[via_n] == -1:
+                # create node1: via entry point on the top layer
                 node_n += 1
                 node1 = deepcopy(node_n)
+
+                # check next layer below
                 if stackup[cavity_n + 1] != via_type[via_n]:
+                    # next layer also antipad ⇒ via isolated through cavity
+                    # create new independent node2 for via exit
                     node_n += 1
                     node2 = deepcopy(node_n)
                 elif layer_com_node[cavity_n + 1] == -1:
+                    # next layer matches via type but not assigned a common node yet
+                    # create new node2 and mark that layer’s shared node
                     node_n += 1
                     node2 = deepcopy(node_n)
                     layer_com_node[cavity_n + 1] = node2
                 else:
+                    # next layer already has a shared node ⇒ reuse it
                     node2 = layer_com_node[cavity_n + 1]
 
-                # if top_port_num[via_n] != [-1] and via_type[via_n] == 1:
-                #     port_node[top_port_num[via_n], 0] = node1
-                # elif top_port_num[via_n] != [-1] and via_type[via_n] == 0:
-                #     port_node[top_port_num[via_n], 1] = node1
-
+                # -----------------------------------------
+                # Assign nodes to ports if this via belongs
+                # to an explicitly numbered top port.
+                # top_port_num[via_n][0] = port index, or -1 if none.
+                # -----------------------------------------
                 if top_port_num[via_n][0] != -1:
                     port_idx = top_port_num[via_n][0]
-                    if via_type[via_n] == 1:
-                        # power
+                    if via_type[via_n] == 1:  # power via
+                        # assign this node as port's positive node (V+)
                         if port_node[port_idx, 0] == -1:
                             port_node[port_idx, 0] = node1
-                    elif via_type[via_n] == 0:
-                        # ground
+                    elif via_type[via_n] == 0:  # ground via
+                        # assign this node as port's negative node (V−)
                         port_node[port_idx, 1] = node1
 
-
-            elif cavity_n == start_layer[via_n] and start_layer[via_n] == 0 and stackup[start_layer[via_n]] != via_type[
-                via_n] \
+            # ============================================================
+            # CASE 2 — Via starts at top surface through antipad,
+            #          but it BELONGS to a top port group (e.g. IC pad cluster)
+            # ============================================================
+            elif cavity_n == start_layer[via_n] and start_layer[via_n] == 0 \
+                    and stackup[start_layer[via_n]] != via_type[via_n] \
                     and top_port_grp[via_n] != -1:
+
+                # if this is the first via in its port group, create group node
                 if port_grp_node_num[top_port_grp[via_n], 0] == -1:
                     node_n += 1
                     node1 = deepcopy(node_n)
+                    # record node info in port_grp_node_num:
+                    # [node_id, type (1=pwr/0=gnd), layer]
                     port_grp_node_num[top_port_grp[via_n], 0] = node1
                     port_grp_node_num[top_port_grp[via_n], 1] = via_type[via_n]
                     port_grp_node_num[top_port_grp[via_n], 2] = start_layer[via_n]
                 else:
+                    # reuse existing group node for same port
                     node1 = port_grp_node_num[top_port_grp[via_n], 0]
 
+                # now handle the lower side of the via
                 if stackup[cavity_n + 1] != via_type[via_n]:
+                    # next layer is antipad ⇒ isolated cavity ⇒ new node
                     node_n += 1
                     node2 = deepcopy(node_n)
                 elif layer_com_node[cavity_n + 1] == -1:
+                    # next layer matches via type but no common node yet ⇒ assign one
                     node_n += 1
                     node2 = deepcopy(node_n)
                     layer_com_node[cavity_n + 1] = node2
                 else:
+                    # next layer already shares a common node ⇒ reuse
                     node2 = layer_com_node[cavity_n + 1]
 
-                # if top_port_num[via_n] != [-1] and via_type[via_n] == 1:
-                #     port_node[top_port_num[via_n], 0] = node1
-                # elif top_port_num[via_n] != [-1] and via_type[via_n] == 0:
-                #     port_node[top_port_num[via_n], 1] = node1
-
+                # assign port connections (same as before)
                 if top_port_num[via_n][0] != -1:
                     port_idx = top_port_num[via_n][0]
                     if via_type[via_n] == 1:
-                        # power
                         if port_node[port_idx, 0] == -1:
                             port_node[port_idx, 0] = node1
                     elif via_type[via_n] == 0:
-                        # ground
                         port_node[port_idx, 1] = node1
 
+            # ============================================================
+            # CASE 3 — Top layer matches via type (no antipad on surface)
+            #          Typically an IC/decap pad landing directly on metal.
+            #          The via “starts” on a metal region at layer 0.
+            # ============================================================
+            elif cavity_n == start_layer[via_n] and start_layer[via_n] == 0 \
+                    and stackup[start_layer[via_n]] == via_type[via_n]:
 
-            elif cavity_n == start_layer[via_n] and start_layer[via_n] == 0 and stackup[start_layer[via_n]] == via_type[
-                via_n]:
+                # --- TOP NODE (node1) ON THE ENTRY LAYER (layer 0) ---
                 if layer_com_node[cavity_n] == -1:
+                    # This top layer (0) has not been assigned a shared node yet.
+                    # Create a new node and mark it as the common node for layer 0.
                     node_n += 1
                     node1 = deepcopy(node_n)
                     layer_com_node[cavity_n] = node1
                 else:
+                    # A shared node for layer 0 already exists, so reuse it.
                     node1 = layer_com_node[cavity_n]
 
+                # --- BOTTOM NODE (node2) ON THE NEXT LAYER (layer 1) ---
                 if stackup[cavity_n + 1] != via_type[via_n]:
+                    # The next layer is *not* the same net as the via (antipad),
+                    # so this via segment is isolated within the cavity.
+                    # Create an *independent* node on the lower side.
                     node_n += 1
                     node2 = deepcopy(node_n)
                 elif layer_com_node[cavity_n + 1] == -1:
+                    # Next layer is same net (continuous metal), but it doesn't
+                    # have a shared node yet → create one and record it.
                     node_n += 1
                     node2 = deepcopy(node_n)
                     layer_com_node[cavity_n + 1] = node2
                 else:
+                    # Next layer is same net and already has a shared node,
+                    # so reuse that node for the lower end of this segment.
                     node2 = layer_com_node[cavity_n + 1]
 
-                # if top_port_num[via_n] != [-1] and via_type[via_n] == 1:
-                #     port_node[top_port_num[via_n], 0] = node1
-                # elif top_port_num[via_n] != [-1] and via_type[via_n] == 0:
-                #     port_node[top_port_num[via_n], 1] = node1
-
+                # --- MAP THIS VIA TO A TOP PORT (IF ANY) ---
                 if top_port_num[via_n][0] != -1:
                     port_idx = top_port_num[via_n][0]
-                    if via_type[via_n] == 1:
-                        # power
+                    if via_type[via_n] == 1:  # power via
+                        # Only set the V+ node if not already claimed
                         if port_node[port_idx, 0] == -1:
                             port_node[port_idx, 0] = node1
-                    elif via_type[via_n] == 0:
-                        # ground
+                    elif via_type[via_n] == 0:  # ground via
+                        # V− node is always the ground-side node
                         port_node[port_idx, 1] = node1
 
 
-            elif cavity_n == start_layer[via_n] and start_layer[via_n] != 0 and cavity_n + 1 < stackup.shape[0] - 1:
+            # ============================================================
+            # CASE 4 — Via starts below top surface, not bottom-most
+            #          (internal/blind/buried via that begins at a middle layer,
+            #           and this segment is not the final one to the bottom.)
+            # ============================================================
+            elif cavity_n == start_layer[via_n] and start_layer[via_n] != 0 \
+                    and cavity_n + 1 < stackup.shape[0] - 1:
+
+                # --- TOP NODE (node1) ON THIS START LAYER ---
                 if stackup[start_layer[via_n]] == via_type[via_n] and layer_com_node[cavity_n] == -1:
+                    # Start layer matches via net and has no shared node yet → create it.
                     node_n += 1
                     node1 = deepcopy(node_n)
                     layer_com_node[cavity_n] = node1
-                elif stackup[start_layer[via_n]] == via_type[via_n] and layer_com_node[cavity_n] != -1:
+                elif stackup[start_layer[via_n]] == via_type[via_n]:
+                    # Start layer matches via net and already has a shared node → reuse it.
                     node1 = layer_com_node[cavity_n]
                 else:
+                    # Start layer is *not* same net (antipad) → create an isolated node.
                     node_n += 1
                     node1 = deepcopy(node_n)
 
+                # --- BOTTOM NODE (node2) ON THE NEXT LAYER ---
                 if stackup[cavity_n + 1] != via_type[via_n]:
+                    # Next layer is antipad relative to via net ⇒ isolated segment end.
                     node_n += 1
                     node2 = deepcopy(node_n)
                 elif layer_com_node[cavity_n + 1] == -1:
+                    # Next layer is same net but no shared node yet ⇒ create and record it.
                     node_n += 1
                     node2 = deepcopy(node_n)
                     layer_com_node[cavity_n + 1] = node2
                 else:
+                    # Next layer is same net and already has a shared node ⇒ reuse it.
                     node2 = layer_com_node[cavity_n + 1]
 
-            elif cavity_n == start_layer[via_n] and start_layer[via_n] != 0 and cavity_n + 1 == stackup.shape[0] - 1:
+
+            # ============================================================
+            # CASE 5 — Via reaches bottom layer
+            #          (handling vias that terminate on the bottom surface)
+            # ============================================================
+            elif cavity_n == start_layer[via_n] and start_layer[via_n] != 0 \
+                    and cavity_n + 1 == stackup.shape[0] - 1:
+
+                # --- TOP NODE (node1) ---
+                # Determine node at the upper interface of this via segment.
                 if stackup[start_layer[via_n]] == via_type[via_n] and layer_com_node[cavity_n] == -1:
+                    # Layer matches via type and hasn’t been assigned → create shared node
                     node_n += 1
                     node1 = deepcopy(node_n)
                     layer_com_node[cavity_n] = node1
-                elif stackup[start_layer[via_n]] == via_type[via_n] and layer_com_node[cavity_n] != -1:
+                elif stackup[start_layer[via_n]] == via_type[via_n]:
+                    # Layer matches via type and already has shared node → reuse
                     node1 = layer_com_node[cavity_n]
                 else:
+                    # Antipad region: create isolated node
                     node_n += 1
                     node1 = deepcopy(node_n)
 
+                # --- BOTTOM NODE (node2) ---
+                # Handle connections depending on port group or shared layer
                 if stackup[-1] != via_type[via_n] and bot_port_grp[via_n] == -1:
+                    # Bottom layer is an antipad and via not part of any port group → isolated node
                     node_n += 1
                     node2 = deepcopy(node_n)
                 elif stackup[-1] != via_type[via_n] and bot_port_grp[via_n] != -1:
+                    # Bottom layer is antipad but belongs to a port group
+                    # Check if that port group already has a node assigned
                     if port_grp_node_num[bot_port_grp[via_n], 0] == -1:
+                        # No node yet → create and record it as shared port group node
                         node_n += 1
                         node2 = deepcopy(node_n)
                         port_grp_node_num[bot_port_grp[via_n], 0] = node2
                         port_grp_node_num[bot_port_grp[via_n], 1] = via_type[via_n]
                         port_grp_node_num[bot_port_grp[via_n], 2] = cavity_n + 1
                     else:
+                        # Already assigned → reuse
                         node2 = port_grp_node_num[bot_port_grp[via_n], 0]
                 else:
+                    # Bottom layer matches via type (no antipad)
+                    # Use or create a common node for bottom metal
                     if layer_com_node[-1] == -1:
                         node_n += 1
                         node2 = deepcopy(node_n)
@@ -563,70 +632,69 @@ def org_merge_pdn(stackup, via_type, start_layer, stop_layer,
                     else:
                         node2 = layer_com_node[-1]
 
-                # if bot_port_num[via_n] != [-1] and via_type[via_n] == 1:
-                #     port_node[bot_port_num[via_n], 0] = node2
-                # elif bot_port_num[via_n] != [-1] and via_type[via_n] == 0:
-                #     port_node[bot_port_num[via_n], 1] = node2
-
+                # --- PORT CONNECTION ---
+                # If this via belongs to a bottom port, link it to port terminals
                 if bot_port_num[via_n][0] != -1:
                     port_idx = bot_port_num[via_n][0]
-                    if via_type[via_n] == 1:
+                    if via_type[via_n] == 1:  # power
                         if port_node[port_idx, 0] == -1:
                             port_node[port_idx, 0] = node2
-                    elif via_type[via_n] == 0:
+                    elif via_type[via_n] == 0:  # ground
                         port_node[port_idx, 1] = node2
 
-
-            elif cavity_n == start_layer[via_n] and start_layer[via_n] != 0 and cavity_n + 1 < stackup.shape[0] - 1:
-                if stackup[start_layer[via_n]] == via_type[via_n] and layer_com_node[cavity_n] == -1:
-                    node_n += 1
-                    node1 = deepcopy(node_n)
-                    layer_com_node[cavity_n] = node1
-                elif stackup[start_layer[via_n]] == via_type[via_n] and layer_com_node[cavity_n] != -1:
-                    node1 = layer_com_node[cavity_n]
-                else:
-                    node_n += 1
-                    node1 = deepcopy(node_n)
-
-                if stackup[cavity_n + 1] == via_type[via_n] and layer_com_node[cavity_n + 1] == -1:
-                    node_n += 1
-                    node2 = deepcopy(node_n)
-                    layer_com_node[cavity_n + 1] = node2
-                elif stackup[cavity_n + 1] == via_type[via_n] and layer_com_node[cavity_n + 1] != -1:
-                    node2 = layer_com_node[cavity_n + 1]
-                else:
-                    node_n += 1
-                    node2 = deepcopy(node_n)
-
+            # ============================================================
+            # CASE 6 — Middle-layer via (spanning multiple cavities)
+            #          (i.e. continuing through stack between internal planes)
+            # ============================================================
             elif cavity_n > start_layer[via_n] and cavity_n + 1 < stackup.shape[0] - 1:
-                node1 = branch[branch_n - 1, 2]  # directly use node2 of the last branch
+                # --- TOP NODE (node1) ---
+                # The top node for this segment is the previous segment’s bottom node
+                node1 = branch[branch_n - 1, 2]
 
+                # --- BOTTOM NODE (node2) ---
                 if stackup[cavity_n + 1] == via_type[via_n] and layer_com_node[cavity_n + 1] == -1:
+                    # Next layer same net, not assigned → create new shared node
                     node_n += 1
                     node2 = deepcopy(node_n)
                     layer_com_node[cavity_n + 1] = node2
-                elif stackup[cavity_n + 1] == via_type[via_n] and layer_com_node[cavity_n + 1] != -1:
+                elif stackup[cavity_n + 1] == via_type[via_n]:
+                    # Next layer same net and shared node exists → reuse
                     node2 = layer_com_node[cavity_n + 1]
                 else:
+                    # Next layer is antipad → create isolated node
                     node_n += 1
                     node2 = deepcopy(node_n)
 
-            elif cavity_n > start_layer[via_n] and cavity_n + 1 == stackup.shape[0] - 1:
-                node1 = branch[branch_n - 1, 2]  # directly use node2 of the last branch
 
+            # ============================================================
+            # CASE 7 — Final via segment reaching bottom of the stack
+            #          (the last piece of a multi-cavity via chain)
+            # ============================================================
+            elif cavity_n > start_layer[via_n] and cavity_n + 1 == stackup.shape[0] - 1:
+                # --- TOP NODE (node1) ---
+                # Continue from previous segment’s bottom node
+                node1 = branch[branch_n - 1, 2]
+
+                # --- BOTTOM NODE (node2) ---
                 if stackup[-1] != via_type[via_n] and bot_port_grp[via_n] == -1:
+                    # Bottom is antipad and via not in port group → create isolated bottom node
                     node_n += 1
                     node2 = deepcopy(node_n)
                 elif stackup[-1] != via_type[via_n] and bot_port_grp[via_n] != -1:
+                    # Bottom is antipad but via is part of bottom port group
                     if port_grp_node_num[bot_port_grp[via_n], 0] == -1:
+                        # Create and assign a shared node for that group
                         node_n += 1
                         node2 = deepcopy(node_n)
                         port_grp_node_num[bot_port_grp[via_n], 0] = node2
                         port_grp_node_num[bot_port_grp[via_n], 1] = via_type[via_n]
                         port_grp_node_num[bot_port_grp[via_n], 2] = cavity_n + 1
                     else:
+                        # Reuse existing group node
                         node2 = port_grp_node_num[bot_port_grp[via_n], 0]
                 else:
+                    # Bottom layer is same net (metal connection)
+                    # Reuse or create bottom shared node
                     if layer_com_node[-1] == -1:
                         node_n += 1
                         node2 = deepcopy(node_n)
@@ -634,25 +702,33 @@ def org_merge_pdn(stackup, via_type, start_layer, stop_layer,
                     else:
                         node2 = layer_com_node[-1]
 
-                # if bot_port_num[via_n] != [-1] and via_type[via_n] == 1:
-                #     port_node[bot_port_num[via_n], 0] = node2
-                # elif bot_port_num[via_n] != [-1] and via_type[via_n] == 0:
-                #     port_node[bot_port_num[via_n], 1] = node2
-
+                # --- PORT CONNECTION ---
+                # If this via corresponds to a bottom port, link to terminals
                 if bot_port_num[via_n][0] != -1:
                     port_idx = bot_port_num[via_n][0]
-                    if via_type[via_n] == 1:
+                    if via_type[via_n] == 1:  # power
                         if port_node[port_idx, 0] == -1:
                             port_node[port_idx, 0] = node2
-                    elif via_type[via_n] == 0:
+                    elif via_type[via_n] == 0:  # ground
                         port_node[port_idx, 1] = node2
 
 
+            # ============================================================
+            # ADD BRANCH ENTRY: [branch_id, node1, node2, cavity_id, via_id]
+            # Every via segment through a cavity creates one branch in the graph.
+            # ============================================================
             if branch_n == 0:
+                # First branch — initialize the array
                 branch = np.array([[branch_n, node1, node2, cavity_n, via_n]])
             else:
-                branch = np.append(branch, np.array([[branch_n, node1, node2, cavity_n, via_n]]), axis=0)
+                # Append new branch row to the branch table
+                branch = np.append(
+                    branch,
+                    np.array([[branch_n, node1, node2, cavity_n, via_n]]),
+                    axis=0
+                )
 
+            # increment total branch counter
             branch_n += 1
 
     # =============================================================================
@@ -665,69 +741,115 @@ def org_merge_pdn(stackup, via_type, start_layer, stop_layer,
     '''
     # =============================================================================
 
+    # layer indexes in stackup for pwr and gnd
     pwr_layers = np.where(stackup == 1)[0]
     gnd_layers = np.where(stackup == 0)[0]
 
+    # Port group node map: [node_id, via_type, layer_idx]
     # find out the nodes that are merged as one group on the top and bottom
-    top_pwr_nodes = port_grp_node_num[np.where((port_grp_node_num[:, 1] == 1) & (port_grp_node_num[:, 2] == 0))[0], 0]
-    top_gnd_nodes = port_grp_node_num[np.where((port_grp_node_num[:, 1] == 0) & (port_grp_node_num[:, 2] == 0))[0], 0]
-    bot_pwr_nodes = port_grp_node_num[
-        np.where((port_grp_node_num[:, 1] == 1) & (port_grp_node_num[:, 2] == stackup.shape[0] - 1))[0], 0]
-    bot_gnd_nodes = port_grp_node_num[
-        np.where((port_grp_node_num[:, 1] == 0) & (port_grp_node_num[:, 2] == stackup.shape[0] - 1))[0], 0]
-
+    top_pwr_nodes = port_grp_node_num[np.where((port_grp_node_num[:, 1] == 1) # pwr nodes on top layer 
+                                               & (port_grp_node_num[:, 2] == 0))[0], 0]
+    top_gnd_nodes = port_grp_node_num[np.where((port_grp_node_num[:, 1] == 0) # gnd nodes on top layer
+                                                & (port_grp_node_num[:, 2] == 0))[0], 0]
+    bot_pwr_nodes = port_grp_node_num[np.where((port_grp_node_num[:, 1] == 1) # pwr nodes on bottom layer
+                                               & (port_grp_node_num[:, 2] == stackup.shape[0] - 1))[0], 0]
+    bot_gnd_nodes = port_grp_node_num[np.where((port_grp_node_num[:, 1] == 0) # gnd nodes on bottom layer
+                                        & (port_grp_node_num[:, 2] == stackup.shape[0] - 1))[0], 0]
+    
+    # Each 2D matrix describes branches that must be merged electrically
+    # Each entry: 2D array (layers × vias) showing which via branches belong to one merged region
     branch_merge_list = []
 
     for i in range(0, stackup.shape[0] - 1):
 
-        # if the first layer is gnd
+        # ============================================================
+        # CASE 1 — First cavity (topmost region) where top layer is GND
+        # ------------------------------------------------------------
+        # According to paper [3] (NVM section), when the top surface
+        # is a ground plane, all vias connected through continuous GND
+        # layers should be merged into one equivalent “super-network”.
+        # ============================================================
         if i == 0 and stackup[i] == 0:
 
-            # consider the layer common node
+            # ---- Subcase 1A: There is a defined common node on this layer ----
             if layer_com_node[i] != -1:
+
+                # Find vias whose *upper node* is this common GND node
                 via2merge_above = branch[np.where(branch[:, 1] == layer_com_node[i])[0], 4]
 
-                # consider the next gnd layer
-                if np.where(gnd_layers == i)[0][0] < gnd_layers.shape[0] - 1:  # if the next gnd layer exists
-                    via2merge_below = branch[
-                        np.where(branch[:, 1] == layer_com_node[gnd_layers[np.where(gnd_layers == i)[0][0] + 1]])[0], 4]
+                # ---- Subcase 1B: Find the next ground layer below (if any) ----
+                # This checks for continuity through stacked GND planes.
+                if np.where(gnd_layers == i)[0][0] < gnd_layers.shape[0] - 1:
+                    next_gnd_idx = gnd_layers[np.where(gnd_layers == i)[0][0] + 1]
+                    # Get vias connected to that next GND plane
+                    via2merge_below = branch[np.where(branch[:, 1] == layer_com_node[next_gnd_idx])[0], 4]
                 else:
+                    # No more ground layers below
                     via2merge_below = np.array([])
 
+                # ---- Subcase 1C: Identify vias shared by both layers ----
+                # These are the physically continuous ground vias
                 via2merge = np.intersect1d(via2merge_above, via2merge_below)
 
+                # ---- Subcase 1D: Merge these vias into one NVM group ----
                 if via2merge.shape[0] != 0:
-                    branch2merge = np.ndarray((gnd_layers[np.where(gnd_layers == i)[0][0] + 1] - i, via2merge.shape[0]))
+                    # number of cavities between this GND and the next one
+                    layer_span = gnd_layers[np.where(gnd_layers == i)[0][0] + 1] - i
+                    # create a 2D array for merged branches: (layers × vias)
+                    branch2merge = np.ndarray((layer_span, via2merge.shape[0]))
+
+                    # for each cavity between GND layers, find branch indices
                     for c in range(i, gnd_layers[np.where(gnd_layers == i)[0][0] + 1]):
-                        branch2merge[c - i, :] = [np.where((branch[:, 4] == via_num) & (branch[:, 3] == c))[0][0] for
-                                                  via_num in via2merge.tolist()]
+                        branch2merge[c - i, :] = [
+                            np.where((branch[:, 4] == via_num) & (branch[:, 3] == c))[0][0]
+                            for via_num in via2merge.tolist()
+                        ]
+
+                    # save the merged group into global list
                     branch_merge_list.append(branch2merge)
 
-                # consider the gnd groups on the bottom plane
-                # If the current gnd layer is the last one
+                # ============================================================
+                # Subcase 1E — Extend merging to the BOTTOM ground plane
+                # ------------------------------------------------------------
+                # If this is the *last* ground layer in the stack, check whether
+                # its vias also connect down to any defined bottom GND port groups.
+                # Those continuous paths should also be merged (equipotential).
+                # ============================================================
                 if np.where(gnd_layers == i)[0][0] == gnd_layers.shape[0] - 1 and bot_gnd_nodes.shape[0] > 0:
                     for n in bot_gnd_nodes.tolist():
+                        # Find vias tied to bottom GND node 'n'
                         via2merge_below = branch[np.where(branch[:, 2] == n)[0], 4]
+                        # Intersect top-side and bottom-side vias to find shared paths
                         via2merge = np.intersect1d(via2merge_above, via2merge_below)
                         if via2merge.shape[0] != 0:
+                            # Merge these vias across all intermediate cavities
                             branch2merge = np.ndarray((stackup.shape[0] - 1 - i, via2merge.shape[0]))
                             for c in range(i, stackup.shape[0] - 1):
                                 branch2merge[c - i, :] = [
-                                    np.where((branch[:, 4] == via_num) & (branch[:, 3] == c))[0][0] for via_num in
-                                    via2merge.tolist()]
+                                    np.where((branch[:, 4] == via_num) & (branch[:, 3] == c))[0][0]
+                                    for via_num in via2merge.tolist()
+                                ]
                             branch_merge_list.append(branch2merge)
 
-                # consider single gnd vias on the bottom plane
-                # If the current gnd layer is the last one
-                # and the gnd vias on the bottom plane is different with the layer type of the last layer
-                # and the gnd vias on the bottom plane does not belong to any port grp
+                # ============================================================
+                # Subcase 1F — Merge isolated GND vias at the bottom
+                # ------------------------------------------------------------
+                # Handles single ground vias that reach the bottom layer but
+                # don’t belong to a defined bottom port group (bot_port_grp = -1).
+                # These still need merging so they are not treated as separate
+                # floating networks in the NVM system.
+                # ============================================================
                 if np.where(gnd_layers == i)[0][0] == gnd_layers.shape[0] - 1 and \
-                        np.where((branch[:, 3] == stackup.shape[0] - 2) & (
-                                via_type[branch[:, 4].astype(int)] != stackup[-1]) &
-                                 (bot_port_grp[branch[:, 4].astype(int)] == -1))[0].shape[0] > 0:
+                np.where((branch[:, 3] == stackup.shape[0] - 2) &
+                            (via_type[branch[:, 4].astype(int)] != stackup[-1]) &
+                            (bot_port_grp[branch[:, 4].astype(int)] == -1))[0].shape[0] > 0:
+
+                    # Get bottom-side nodes belonging to ungrouped GND vias
                     bot_gnd_single_nodes = branch[np.where(
-                        (branch[:, 3] == stackup.shape[0] - 2) & (via_type[branch[:, 4].astype(int)] != stackup[-1]) &
+                        (branch[:, 3] == stackup.shape[0] - 2) &
+                        (via_type[branch[:, 4].astype(int)] != stackup[-1]) &
                         (bot_port_grp[branch[:, 4].astype(int)] == -1))[0], 2]
+
                     for n in bot_gnd_single_nodes.tolist():
                         via2merge_below = branch[np.where(branch[:, 2] == n)[0], 4]
                         via2merge = np.intersect1d(via2merge_above, via2merge_below)
@@ -735,42 +857,77 @@ def org_merge_pdn(stackup, via_type, start_layer, stop_layer,
                             branch2merge = np.ndarray((stackup.shape[0] - 1 - i, via2merge.shape[0]))
                             for c in range(i, stackup.shape[0] - 1):
                                 branch2merge[c - i, :] = [
-                                    np.where((branch[:, 4] == via_num) & (branch[:, 3] == c))[0][0] for via_num in
-                                    via2merge.tolist()]
+                                    np.where((branch[:, 4] == via_num) & (branch[:, 3] == c))[0][0]
+                                    for via_num in via2merge.tolist()
+                                ]
+                            # Only record nontrivial merges (multiple vias/layers)
                             if branch2merge.shape[0] > 1 or branch2merge.shape[1] > 1:
                                 branch_merge_list.append(branch2merge)
 
-            # consider the pwr port groups on the top layer
+            # ============================================================
+            # Subcase 1G — Merge top PWR port groups
+            # ------------------------------------------------------------
+            # For the topmost cavity: if any PWR port groups exist on the
+            # top layer, check whether their vias continue into the first
+            # internal PWR layer below (through decaps or buried vias).
+            #
+            # These connections represent the start of the power network
+            # and must be treated as one equipotential region.
+            # ============================================================
             if top_pwr_nodes.shape[0] > 0:
                 for n in top_pwr_nodes.tolist():
+                    # Vias tied to the top PWR node 'n'
                     via2merge_above = branch[np.where(branch[:, 1] == n)[0], 4]
-
-                    # consider the next pwr layer
+                    # Corresponding vias reaching the next PWR layer below
                     via2merge_below = branch[np.where(branch[:, 2] == layer_com_node[pwr_layers[0]])[0], 4]
+                    # Intersection: vias common to both top node and next PWR plane
                     via2merge = np.intersect1d(via2merge_above, via2merge_below)
                     if via2merge.shape[0] != 0:
+                        # Stack all via segments between top and first PWR layer
                         branch2merge = np.ndarray((pwr_layers[0] - i, via2merge.shape[0]))
                         for c in range(i, pwr_layers[0]):
-                            branch2merge[c - i, :] = [np.where((branch[:, 4] == via_num) & (branch[:, 3] == c))[0][0]
-                                                      for via_num in via2merge.tolist()]
+                            branch2merge[c - i, :] = [
+                                np.where((branch[:, 4] == via_num) & (branch[:, 3] == c))[0][0]
+                                for via_num in via2merge.tolist()
+                            ]
                         branch_merge_list.append(branch2merge)
 
-            # consider single pwr vias on the top layer
-            if np.where((branch[:, 3] == 0) & (via_type[branch[:, 4].astype(int)] != stackup[0]) &
-                        (top_port_grp[branch[:, 4].astype(int)] == -1))[0].shape[0] > 0:
-                top_pwr_single_nodes = branch[
-                    np.where((branch[:, 3] == 0) & (via_type[branch[:, 4].astype(int)] != stackup[0]) &
-                             (top_port_grp[branch[:, 4].astype(int)] == -1))[0], 1]
+            # ============================================================
+            # Subcase 1H — Merge single top PWR vias (not in port groups)
+            # ------------------------------------------------------------
+            # Some top PWR vias (for example, single decap or blind vias)
+            # are not assigned to a specific port group (top_port_grp = -1)
+            # but still connect top-side metal to the first PWR layer below.
+            #
+            # These are merged so that their electrical effect is not
+            # duplicated or isolated in the NVM admittance network.
+            # ============================================================
+            if np.where(
+                (branch[:, 3] == 0) &
+                (via_type[branch[:, 4].astype(int)] != stackup[0]) &
+                (top_port_grp[branch[:, 4].astype(int)] == -1)
+            )[0].shape[0] > 0:
+
+                # Find top-layer nodes of ungrouped PWR vias
+                top_pwr_single_nodes = branch[np.where(
+                    (branch[:, 3] == 0) &
+                    (via_type[branch[:, 4].astype(int)] != stackup[0]) &
+                    (top_port_grp[branch[:, 4].astype(int)] == -1)
+                )[0], 1]
+
                 for n in top_pwr_single_nodes.tolist():
                     via2merge_above = branch[np.where(branch[:, 1] == n)[0], 4]
-                    # consider the next pwr layer
                     via2merge_below = branch[np.where(branch[:, 2] == layer_com_node[pwr_layers[0]])[0], 4]
                     via2merge = np.intersect1d(via2merge_above, via2merge_below)
                     if via2merge.shape[0] != 0:
+                        # Build merged via list spanning down to first PWR layer
                         branch2merge = np.ndarray((pwr_layers[0] - i, via2merge.shape[0]))
                         for c in range(i, pwr_layers[0]):
-                            branch2merge[c - i, :] = [np.where((branch[:, 4] == via_num) & (branch[:, 3] == c))[0][0]
-                                                      for via_num in via2merge.tolist()]
+                            branch2merge[c - i, :] = [
+                                np.where((branch[:, 4] == via_num) & (branch[:, 3] == c))[0][0]
+                                for via_num in via2merge.tolist()
+                            ]
+                        # Only keep non-trivial merges
                         if branch2merge.shape[0] > 1 or branch2merge.shape[1] > 1:
                             branch_merge_list.append(branch2merge)
 
@@ -1260,18 +1417,18 @@ class PDN():
 
         # ---- Via lists (IC + DECAP + optional BURIED) ----
         if hasattr(self, 'buried_via_xy') and self.buried_via_xy is not None and len(self.buried_via_xy) > 0:
-            via_xy   = np.concatenate((self.ic_via_xy, self.decap_via_xy, self.buried_via_xy), axis=0)
-            via_type = np.concatenate((self.ic_via_type, self.decap_via_type, self.buried_via_type), axis=0)
-            via_loc  = np.concatenate((self.ic_via_loc,  self.decap_via_loc),  axis=0)
+            via_xy   = np.concatenate((self.ic_via_xy, self.decap_via_xy, self.buried_via_xy), axis=0) 
+            via_type = np.concatenate((self.ic_via_type, self.decap_via_type, self.buried_via_type), axis=0) # 1 - pwr, 0 - gnd
+            via_loc  = np.concatenate((self.ic_via_loc,  self.decap_via_loc),  axis=0) # 
         else:
             via_xy   = np.concatenate((self.ic_via_xy, self.decap_via_xy), axis=0)
             via_type = np.concatenate((self.ic_via_type, self.decap_via_type), axis=0)
             via_loc  = np.concatenate((self.ic_via_loc,  self.decap_via_loc),  axis=0)
 
-        via_r   = deepcopy(self.via_r)
-        stackup = deepcopy(self.stackup)
-        sxy     = deepcopy(self.sxy)
-        die_t   = deepcopy(self.die_t)
+        via_r   = deepcopy(self.via_r) # via radius
+        stackup = deepcopy(self.stackup) # stackup mask (1-pwr, 0-gnd)
+        sxy     = deepcopy(self.sxy) # segnented outline of each layer
+        die_t   = deepcopy(self.die_t) # dielectric thickness
 
         # ---- Board area / per-cavity area ----
         def get_overlap_area(shape1, shape2):
@@ -1295,9 +1452,14 @@ class PDN():
         C_pul = deepcopy(self.C_pul)
 
         # ---- Port mapping containers (top/bottom) ----
-        top_port_num = [[-1] for _ in range(via_xy.shape[0])]
+
+        # port number assigned to via i if it terminates in the top cavity
+        top_port_num = [[-1] for _ in range(via_xy.shape[0])] 
+        
+        # same idea for the bottom cavity
         bot_port_num = [[-1] for _ in range(via_xy.shape[0])]
 
+        # group indices for vias that belong to the same logical port group (used when merging multiple pins together)
         top_port_grp = -1 * np.ones((via_xy.shape[0]), dtype=int)
         bot_port_grp = -1 * np.ones((via_xy.shape[0]), dtype=int)
 
@@ -1305,6 +1467,9 @@ class PDN():
         port_num = 1
         pwr_count = gnd_count = 0
 
+        # Assume IC is port 0, and all decaps have 2 connections.
+        # And all IC ports are connected using via, (not anchored to the plance for ex)
+        
         # Top cavity
         for i in range(via_loc.shape[0]):
             if i < self.ic_via_xy.shape[0]:  # IC via → port 0

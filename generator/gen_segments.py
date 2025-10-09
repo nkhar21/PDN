@@ -5,7 +5,7 @@ from BEM_AC_NVM_PDN import PDN
 
 def generate_segments(
     bxy: np.ndarray,
-    d: float
+    dl: float
 ) -> Tuple[np.ndarray, List[Tuple[int, int]], List[np.ndarray]]:
     """
     Generate segmented boundary attributes from board outlines.
@@ -14,7 +14,7 @@ def generate_segments(
     ----------
     bxy : np.ndarray[dtype=object]
         Board outline polygons (N_layers,). Each entry is (M,2).
-    d : float
+    dl : float
         Segment length (meters).
 
     Returns
@@ -31,7 +31,7 @@ def generate_segments(
     pdn = PDN() # probably will have to modify after geometry gets decomposed out of BEM_AC_NVM_PDN.py
 
     for poly in bxy:
-        segs = pdn.seg_bd_node(poly, d)  # imported directly
+        segs = pdn.seg_bd_node(poly, dl)  # imported directly
         sxy_list.append(segs)
         n_seg = segs.shape[0]
         sxy_index_ranges.append((offset, offset + n_seg))
