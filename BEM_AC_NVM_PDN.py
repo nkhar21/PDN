@@ -396,13 +396,14 @@ def org_merge_pdn(stackup, via_type, start_layer, stop_layer,
 
     branch = np.zeros((1, 4))  # four columns: node 1, node 2, cavity num, global via num
     layer_com_node = -1 * np.ones((stackup.shape[0]))  # the common node number for each layer
-    port_node = -1 * np.ones((max(max_value(top_port_num), max_value(bot_port_num)) + 1,
-                              2))  # positive node and negative node for different ports
+    # positive node and negative node for different ports
+    port_node = -1 * np.ones((max(max_value(top_port_num), max_value(bot_port_num)) + 1, 2))  
+    # node num, node type (1 or 0), layer number of the port groups
     port_grp_node_num = -1 * np.ones((int(np.max([np.max(top_port_grp),
-                            np.max(bot_port_grp)])) + 1,3))  # node num, node type (1 or 0), layer number of the port groups
+                                        np.max(bot_port_grp)])) + 1,3))  
 
-    branch_n = 0
-    node_n = -1
+    branch_n = 0 # branch counter
+    node_n = -1 # node counter
 
     for via_n in range(0, via_type.shape[0]):  # iterate over all vias in the design
         for cavity_n in range(start_layer[via_n], stop_layer[via_n]):  # iterate over each cavity that via passes through
@@ -1229,10 +1230,8 @@ class PDN():
         self.top_port_num = np.array([])  # ports on the top layer (nk)
         self.bot_port_num = np.array([])  # on the bottom layer (nk
 
-
         self.stackup = np.array([])
         self.die_t = np.array([])
-        #self.er = 4.4
         self.er_list = [] #change
         self.brd = np.array([])
 
@@ -1249,12 +1248,14 @@ class PDN():
 
         self.via_r = 0.2e-3
 
-
         self.ic_via_xy = np.array([])  # original x,y locations of vias, 2-column matrix
         self.ic_via_type = np.array([])  # original type of vias. 1 for pwr, 0 for gnd
+        self.ic_via_loc = np.array([])  # locations for corresponding IC pins, 1 for top layer, 0 for bottom layer
 
-        self.buried_via_xy = np.array([])  # original x,y locations of vias, 2-column matrix
+        self.buried_via_xy = np.array([])  # original x,y locations of buried vias, 2-column matrix
         self.buried_via_type = np.array([])  # original type of vias. 1 for pwr, 0 for gnd
+        self.blind_via_xy = np.array([])  # original x,y locations of blind vias that are not ic's or decap's, 2-column matrix
+        self.blind_via_type = np.array([])  # original type of vias. 1 for pwr, 0 for gnd
 
         self.decap_via_xy = np.array([])  # x,y locations for decap vias, 2-column matrix
         self.decap_via_type = np.array([])  # type of decap vias, 1 for pwr, 0 for gnd
@@ -1416,14 +1417,9 @@ class PDN():
         e = 8.85e-12
 
         # ---- Via lists (IC + DECAP + optional BURIED) ----
-        if hasattr(self, 'buried_via_xy') and self.buried_via_xy is not None and len(self.buried_via_xy) > 0:
-            via_xy   = np.concatenate((self.ic_via_xy, self.decap_via_xy, self.buried_via_xy), axis=0) 
-            via_type = np.concatenate((self.ic_via_type, self.decap_via_type, self.buried_via_type), axis=0) # 1 - pwr, 0 - gnd
-            via_loc  = np.concatenate((self.ic_via_loc,  self.decap_via_loc),  axis=0) # 
-        else:
-            via_xy   = np.concatenate((self.ic_via_xy, self.decap_via_xy), axis=0)
-            via_type = np.concatenate((self.ic_via_type, self.decap_via_type), axis=0)
-            via_loc  = np.concatenate((self.ic_via_loc,  self.decap_via_loc),  axis=0)
+        via_xy   = np.concatenate((self.ic_via_xy, self.decap_via_xy, self.buried_via_xy, self.blind_via_xy), axis=0) 
+        via_type = np.concatenate((self.ic_via_type, self.decap_via_type, self.buried_via_type, self.blind_via_type), axis=0) # 1 for pwr, 0 for gnd
+        via_loc  = np.concatenate((self.ic_via_loc,  self.decap_via_loc),  axis=0) # 1 for top, 0 for bottom
 
         via_r   = deepcopy(self.via_r) # via radius
         stackup = deepcopy(self.stackup) # stackup mask (1-pwr, 0-gnd)
@@ -1454,12 +1450,13 @@ class PDN():
         # ---- Port mapping containers (top/bottom) ----
 
         # port number assigned to via i if it terminates in the top cavity
-        top_port_num = [[-1] for _ in range(via_xy.shape[0])] 
+        top_port_num = [[-1] for _ in range(via_xy.shape[0])] # -1 = unset
         
         # same idea for the bottom cavity
-        bot_port_num = [[-1] for _ in range(via_xy.shape[0])]
+        bot_port_num = [[-1] for _ in range(via_xy.shape[0])] # -1 = unset
 
-        # group indices for vias that belong to the same logical port group (used when merging multiple pins together)
+        # group indices for vias that belong to the same logical port group 
+        # (used when merging multiple pins together)
         top_port_grp = -1 * np.ones((via_xy.shape[0]), dtype=int)
         bot_port_grp = -1 * np.ones((via_xy.shape[0]), dtype=int)
 

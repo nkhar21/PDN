@@ -411,15 +411,10 @@ def org_resistance(stackup, via_type, start_layer, stop_layer, via_xy, decap_via
 
 def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, decap_via_xy, decap_via_loc, ic_via_xy, ic_via_type, ic_via_loc):
     
-    if hasattr(brd, 'buried_via_xy') and brd.buried_via_xy is not None and len(brd.buried_via_xy) > 0:
-        via_xy = np.concatenate((brd.ic_via_xy, brd.decap_via_xy, brd.buried_via_xy), axis=0)
-        via_type = np.concatenate((brd.ic_via_type, brd.decap_via_type, brd.buried_via_type), axis=0)
-    else:
-        via_xy = np.concatenate((brd.ic_via_xy, brd.decap_via_xy), axis=0)
-        via_type = np.concatenate((brd.ic_via_type, brd.decap_via_type), axis=0)
+    via_xy = np.concatenate((brd.ic_via_xy, brd.decap_via_xy, brd.buried_via_xy), axis=0)
+    via_type = np.concatenate((brd.ic_via_type, brd.decap_via_type, brd.buried_via_type), axis=0)
 
     branch = org_resistance(stackup, via_type, start_layer, stop_layer, via_xy, decap_via_type, decap_via_xy, decap_via_loc, ic_via_xy, ic_via_type, ic_via_loc)
-
 
     branch_num = branch.shape[0]
     node_num = int(np.max(branch[:, [1, 2]]))

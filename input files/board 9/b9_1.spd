@@ -1,4 +1,4 @@
-Title WorkflowKey = 0x100000067 ProductInfo = 0x1 - LayoutWorkbench file for version 2000.20
+Title WorkflowKey = 0x100000067 - LayoutWorkbench file for version 2000.20
 * Layout Workbench 24.1.0.10141.541387   000
 
 * Please do NOT edit special void criteria manually.
@@ -7,7 +7,7 @@ Title WorkflowKey = 0x100000067 ProductInfo = 0x1 - LayoutWorkbench file for ver
 .ViaAntipadDistanceRangeFactor = 1.000000
 
 * Transient description line
-.Transient FinalTime = 0.216817ns Timesteps = 1000 Viewstep = 1
+.Transient FinalTime = 0.216817ns Timesteps = 424 Viewstep = 1
 +          DT = 2.16817e-12
 
 * External Circuit Solver description lines
@@ -33,58 +33,96 @@ Box002+ -5.000000e+01mm -5.000000e+01mm 1.000000e+02mm 1.000000e+02mm
 .EndShape
 
 .Shape Shape003
-Box01+ -5.000000e+01mm -5.000000e+01mm 1.000000e+01mm 1.000000e+01mm
+Polygon1+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
++            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
 .EndShape
 
 .Shape Shape004
-Box02+ -5.000000e+01mm -5.000000e+01mm 1.000000e+02mm 1.000000e+02mm
 .EndShape
 
 .Shape ShapeSignal01
-Box3::gnd+ 0.000000e+00mm 0.000000e+00mm 1.000000e+01mm 1.000000e+01mm
-Circle01::gnd- ViaHole_A Sub-element 3.000000e+00mm 7.000000e+00mm 5.000000e-01mm
+Polygon1::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
++            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
+Circle01::gnd- ViaHole_A Sub-element 2.400000e+01mm 1.800000e+01mm 5.000000e-01mm
 .EndShape
 
 .Shape ShapeSignal02
-Box4::pwr+ 0.000000e+00mm 0.000000e+00mm 1.000000e+01mm 1.000000e+01mm
-Circle6::pwr- ViaHole_A Sub-element 7.000000e+00mm 5.000000e+00mm 5.000000e-01mm
+Polygon2::pwr+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
++            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
 .EndShape
 
 .Shape ShapeSignal03
-Box5::gnd+ 0.000000e+00mm 0.000000e+00mm 1.000000e+01mm 1.000000e+01mm
-Circle7::gnd- ViaHole_A Sub-element 3.000000e+00mm 7.000000e+00mm 5.000000e-01mm
+Polygon3::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
++            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
 .EndShape
 
-UnionizedShape = F9CBCC4B-B7D44733-2AD9C61B-6F0385E4
+.Shape ShapeSignal04
+Polygon4::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
++            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
+.EndShape
+
+.Shape ShapeSignal05
+Polygon5::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
++            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
+.EndShape
+
+.Shape ShapeSignal06
+Polygon6::gnd+ 0.000000e+00mm 0.000000e+00mm 3.000000e+01mm 0.000000e+00mm 3.000000e+01mm 2.000000e+01mm 2.000000e+01mm 2.000000e+01mm
++            2.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 1.000000e+01mm 2.000000e+01mm 0.000000e+00mm 2.000000e+01mm
+Circle2::gnd- ViaHole_A Sub-element 2.400000e+01mm 1.800000e+01mm 5.000000e-01mm
+.EndShape
+
+UnionizedShape = B8A2E5FE-FCC7ED54-5C67F300-CFB05730
 
 * CuttingBoundary description lines
 
 * Layer description lines
-Signal01 Permittivity = 1.000000e+00 LossTangent = 0.000000e+00
+Signal01 Permittivity = 1.000000e+00 LossTangent = 0.000000e+00 Color = LIME
 PatchSignal01 Shape = ShapeSignal01 Layer = Signal01
 Medium01 Permittivity = 4.000000e+00 LossTangent = 0.000000e+00
-Signal02 DielectricMaterial = [FillSignal02_Average] Color = 0x00D3D3
+Signal02 DielectricMaterial = [FillSignal02_Average] Color = RED
 PatchSignal02 Shape = ShapeSignal02 Layer = Signal02
 Medium02 Permittivity = 4.000000e+00 LossTangent = 0.000000e+00
-Signal03 DielectricMaterial = [AIR] Color = 0x00CFCF
+Signal03 DielectricMaterial = [FillSignal03_Average] Color = 0x007C7C
 PatchSignal03 Shape = ShapeSignal03 Layer = Signal03
+Medium03 Permittivity = 4.000000e+00 LossTangent = 0.000000e+00
+Signal04 DielectricMaterial = [FillSignal04_Average] Color = 0x008282
+PatchSignal04 Shape = ShapeSignal04 Layer = Signal04
+Medium04 Permittivity = 4.000000e+00 LossTangent = 0.000000e+00
+Signal05 DielectricMaterial = [FillSignal05_Average] Color = 0x00EBEB
+PatchSignal05 Shape = ShapeSignal05 Layer = Signal05
+Medium05 Permittivity = 4.000000e+00 LossTangent = 0.000000e+00
+Signal06 Material = 1MM_COPPER DielectricMaterial = [AIR] Color = 0x00A2A2
+PatchSignal06 Shape = ShapeSignal06 Layer = Signal06
 
 * ConformalLayer description lines
 
 * Node description lines
-Node01::pwr X = 3.000000e+00mm Y = 7.000000e+00mm Layer = Signal01
-Node02::pwr X = 3.000000e+00mm Y = 7.000000e+00mm Layer = Signal02
-Node06::gnd X = 7.000000e+00mm Y = 5.000000e+00mm Layer = Signal01
-Node07::gnd X = 7.000000e+00mm Y = 5.000000e+00mm Layer = Signal02
-Node08::pwr X = 3.000000e+00mm Y = 7.000000e+00mm Layer = Signal03
-Node09::gnd X = 7.000000e+00mm Y = 5.000000e+00mm Layer = Signal03
+Node013::gnd X = 4.000000e+00mm Y = 1.400000e+01mm Layer = Signal01
+Node017::gnd X = 6.000000e+00mm Y = 1.400000e+01mm Layer = Signal01
+Node01::pwr X = 2.400000e+01mm Y = 1.800000e+01mm Layer = Signal01
+Node023::gnd X = 4.000000e+00mm Y = 1.000000e+01mm Layer = Signal01
+Node02::pwr X = 2.400000e+01mm Y = 1.800000e+01mm Layer = Signal02
+Node037::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal04
+Node038::gnd X = 2.540140e+01mm Y = 1.289620e+01mm Layer = Signal04
+Node039::gnd X = 2.540140e+01mm Y = 1.289620e+01mm Layer = Signal06
+Node04::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal01
+Node05::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal03
+Node07::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal05
+Node08::gnd X = 2.700000e+01mm Y = 1.800000e+01mm Layer = Signal06
+Node1::pwr X = 2.400000e+01mm Y = 1.800000e+01mm Layer = Signal06
+Node21::gnd X = 6.000000e+00mm Y = 1.000000e+01mm Layer = Signal01
 
 * Trace description lines
 
 * Via description lines
 Via01::pwr UpperNode = Node01::pwr LowerNode = Node02::pwr PadStack = ~DefaultPadStack
-Via03::pwr UpperNode = Node02::pwr LowerNode = Node08::pwr PadStack = ~DefaultPadStack
-Via05::gnd UpperNode = Node06::gnd LowerNode = Node09::gnd PadStack = ~DefaultPadStack NoAntiPadLayers = Signal02
+Via020::gnd UpperNode = Node05::gnd LowerNode = Node037::gnd PadStack = ~DefaultPadStack
+Via021::gnd UpperNode = Node037::gnd LowerNode = Node07::gnd PadStack = ~DefaultPadStack
+Via022::gnd UpperNode = Node038::gnd LowerNode = Node039::gnd PadStack = ~DefaultPadStack
+Via02::pwr UpperNode = Node02::pwr LowerNode = Node1::pwr PadStack = ~DefaultPadStack
+Via03::gnd UpperNode = Node04::gnd LowerNode = Node05::gnd PadStack = ~DefaultPadStack
+Via05::gnd UpperNode = Node07::gnd LowerNode = Node08::gnd PadStack = ~DefaultPadStack
 
 * WirebondDefination description lines
 .WireBondModel Diameter = 2.540000e-02mm Conductivity = 4.100000e+07 Er = 3.000000
@@ -104,6 +142,23 @@ Via05::gnd UpperNode = Node06::gnd LowerNode = Node09::gnd PadStack = ~DefaultPa
 
 * Material description lines
 .Material
+.MetalModel 1MM_COPPER
+*Temperature(C) Conductivity(S/m)
+2.000000e+01 5.800000e+07
+2.500000e+01 5.800000e+07
+.EndMetalModel
+
+.ThermalModel 1MM_COPPER
+*Temperature(C) Conductivity(W/(m.K)) Density(kg/m3) Heatcapacity(J/(kg.K)) Emissivity SolarReflectance
+2.700000e+01 4.010000e+02 8.933000e+03 3.850000e+02 7.000000e-02 0.000000e+00
+1.270000e+02 3.930000e+02 8.933000e+03 3.970000e+02 7.000000e-02 0.000000e+00
+2.270000e+02 3.860000e+02 8.933000e+03 4.120000e+02 7.000000e-02 0.000000e+00
+3.270000e+02 3.790000e+02 8.933000e+03 4.170000e+02 7.000000e-02 0.000000e+00
+5.270000e+02 3.660000e+02 8.933000e+03 4.330000e+02 7.000000e-02 0.000000e+00
+7.270000e+02 3.520000e+02 8.933000e+03 4.510000e+02 7.000000e-02 0.000000e+00
+9.270000e+02 3.390000e+02 8.933000e+03 4.800000e+02 7.000000e-02 0.000000e+00
+.EndThermalModel
+
 .DielectricModel [AIR]
 *Frequency(MHz) Permittivity LossTangent
 1.000000e+03 1.000000e+00 0.000000e+00
@@ -126,6 +181,21 @@ Via05::gnd UpperNode = Node06::gnd LowerNode = Node09::gnd PadStack = ~DefaultPa
 .EndThermalModel
 
 .DielectricModel [FillSignal02_Average]
+*Frequency(MHz) Permittivity LossTangent
+1.000000e+03 4.000000e+00 0.000000e+00
+.EndDielectricModel
+
+.DielectricModel [FillSignal03_Average]
+*Frequency(MHz) Permittivity LossTangent
+1.000000e+03 4.000000e+00 0.000000e+00
+.EndDielectricModel
+
+.DielectricModel [FillSignal04_Average]
+*Frequency(MHz) Permittivity LossTangent
+1.000000e+03 4.000000e+00 0.000000e+00
+.EndDielectricModel
+
+.DielectricModel [FillSignal05_Average]
 *Frequency(MHz) Permittivity LossTangent
 1.000000e+03 4.000000e+00 0.000000e+00
 .EndDielectricModel
@@ -157,20 +227,15 @@ Via05::gnd UpperNode = Node06::gnd LowerNode = Node09::gnd PadStack = ~DefaultPa
 +    ExtNode = 1    2
 .EndPartialCkt
 
-.PartialCkt    NewEmptyCktDef
-+    ExtNode = 1 
-
-.EndPartialCkt
-
 * Component description lines
-.Connect decap_port cap Usage = 0b1000001000 Checked = 1
-1 $Package.Node08::pwr
-2 $Package.Node09::gnd
+.Connect decap_port cap Usage = 0b11000 Checked = 1
+1 $Package.Node1::pwr
+2 $Package.Node08::gnd
 .EndC
 
-.Connect ic_port ic Usage = 0b11000001000 Checked = 1
+.Connect ic_port ic Usage = 0b11000 Checked = 1
 1 $Package.Node01::pwr
-2 $Package.Node06::gnd
+2 $Package.Node04::gnd
 .EndC
 
 * Component collection description lines
@@ -258,12 +323,13 @@ Via05::gnd UpperNode = Node06::gnd LowerNode = Node09::gnd PadStack = ~DefaultPa
 +            LayerColorOpacity = 50
 +            RulerFont = F5FFFFFF000000000000000000000000900100000000000003020122417269616C000000000000000000000000000000000000000000000000000000
 +            ShowCheckResult = 0
++            Ignore_REFplane_GND_ShortCircuit = 1
 
 * Pulse Response Setting description lines
 
 * PowerSI Setup description lines
 .PowerSI
-.MaxEdgeLength = 5.000000e-04
+.MaxEdgeLength = 1.500000e-03
 .ReferenceImpedance = 5.000000e+01
 .ReferenceImpedance2 = 5.000000e+01
 .DC_BBS_Setting DCFitted = 0 BBSFitted = 0 PDCEqualPotential = 0
@@ -277,10 +343,10 @@ Via05::gnd UpperNode = Node06::gnd LowerNode = Node09::gnd PadStack = ~DefaultPa
 .Port
 Port1_ic_port_1::pwr Auto GenFromCktInstance="ic_port" GenFromCktModel="ic"
 +            PositiveTerminal $Package.Node01::pwr
-+            NegativeTerminal $Package.Node06::gnd
++            NegativeTerminal $Package.Node04::gnd
 Port2_decap_port_1::pwr Auto GenFromCktInstance="decap_port" GenFromCktModel="cap"
-+            PositiveTerminal $Package.Node08::pwr
-+            NegativeTerminal $Package.Node09::gnd
++            PositiveTerminal $Package.Node1::pwr
++            NegativeTerminal $Package.Node08::gnd
 .EndPort
 
 * Extraction Setting description lines
@@ -292,7 +358,7 @@ Port2_decap_port_1::pwr Auto GenFromCktInstance="decap_port" GenFromCktModel="ca
 
 * Frequency Sweeping description lines
 .FrequencySweep 1.000000e+01MHz 1.000000e+00GHz 1.000000e+01MHz Linear
-.FrequencyNew 1.000000e+04 2.000000e+09 2
+.FrequencyNew 1.000000e+07 1.000000e+09 2
 .DisplayFrequencyArray
 .SolutionFrequency 1.000000e+09
 
@@ -320,12 +386,12 @@ Port2_decap_port_1::pwr Auto GenFromCktInstance="decap_port" GenFromCktModel="ca
 .3DEMCap
 .SimuOptionSettings
 +            MeshAlgorithm = 4 PolygonSimplificationType = 0 SignalNetsRefinements = 1
-+            dxp = 0.0141854
-+            dxm = 0.0141854
-+            dyp = 0.0141854
-+            dym = 0.0141854
-+            dzp = 0.0141854
-+            dzm = 0.0141854
++            dxp = 0.0361575
++            dxm = 0.0361575
++            dyp = 0.0361575
++            dym = 0.0361575
++            dzp = 0.0361575
++            dzm = 0.0361575
 .EndSimuOptionSettings
 .End3DEMCap
 
@@ -385,8 +451,7 @@ Port2_decap_port_1::pwr Auto GenFromCktInstance="decap_port" GenFromCktModel="ca
 .EndXtractIM
 
 * PowerDC Setup description lines
-.PowerDC ReferenceNode = Node06::gnd PlotResolution = 5e-05 MeshX = 200 MeshY = 200 MaxEdgeLength = 0.0005 SimulationType = 7
-.GlobalConstraint MaxAllowMetalCurrentDensity = 1.805876e+07
+.PowerDC PlotResolution = 0.0001 MeshX = 300 MeshY = 200 SimulationType = 1
 .TreatPadAsShape Type = 2 ConnectObject = 1 CheckIgnorePinSize = 1 NodeGapForPad = 5.08e-05 MinNodeNumForPad = 6
 .SignOffReportSetting VerticalRangeScale = 85
 .ExportDistribution2TxtSetting AllInOneLayer = 0
@@ -394,70 +459,8 @@ Port2_decap_port_1::pwr Auto GenFromCktInstance="decap_port" GenFromCktModel="ca
 * PowerLoss description lines
 
 * PdcElem description lines
-.VRM NominalVoltage = 1 SenseVoltage = 1 OutputCurrent = 1 Name = "VRM_ic_port_pwr_gnd"
-.Pin Name = "Negative Pin"
-.Map CircuitName = ic_port CircuitPinName = 2
-.Node Name = Node06::gnd
-.EndMap
-.EndPin
-.Pin Name = "Negative Sense Pin"
-.EndPin
-.Pin Name = "Positive Pin"
-.Map CircuitName = ic_port CircuitPinName = 1
-.Node Name = Node01::pwr
-.EndMap
-.EndPin
-.Pin Name = "Positive Sense Pin"
-.EndPin
-.EndVRM
-.Sink NominalVoltage = 1 Current = 1 Model = 2 PFMode = 2 Name = "SINK_decap_port_pwr_gnd"
-.Pin Name = "Negative Pin"
-.Map CircuitName = decap_port CircuitPinName = 2
-.Node Name = Node09::gnd Voltage = inf
-.EndMap
-.EndPin
-.Pin Name = "Positive Pin"
-.Map CircuitName = decap_port CircuitPinName = 1
-.Node Name = Node08::pwr Voltage = inf
-.EndMap
-.EndPin
-.SinkCurrentSource
-.EndSinkCurrentSource
-.EndSink
 .SpiceNetlist Name = "SPICENetlist"
-.Pin Name = "decap_port.1"
-.Map CircuitName = decap_port CircuitPinName = 1
-.Node Name = Node08::pwr
-.EndMap
-.EndPin
-.Pin Name = "decap_port.2"
-.Map CircuitName = decap_port CircuitPinName = 2
-.Node Name = Node09::gnd
-.EndMap
-.EndPin
-.Pin Name = "ic_port.1"
-.Map CircuitName = ic_port CircuitPinName = 1
-.Node Name = Node01::pwr
-.EndMap
-.EndPin
-.Pin Name = "ic_port.2"
-.Map CircuitName = ic_port CircuitPinName = 2
-.Node Name = Node06::gnd
-.EndMap
-.EndPin
 .EndSpiceNetlist
-.Resistance Model = 1 Name = "RESI_SINK_decap_port_pwr_gnd"
-.Pin Name = "Negative Pin"
-.Map CircuitName = decap_port CircuitPinName = 2
-.Node Name = Node09::gnd
-.EndMap
-.EndPin
-.Pin Name = "Positive Pin"
-.Map CircuitName = decap_port CircuitPinName = 1
-.Node Name = Node08::pwr
-.EndMap
-.EndPin
-.EndResistance
 
 * ConstraintDisc description lines
 
@@ -487,7 +490,7 @@ Port2_decap_port_1::pwr Auto GenFromCktInstance="decap_port" GenFromCktModel="ca
 .AmbientConditions AirVelocity = 0
 .EndAmbientConditions
 .ThermalConstraints Constraints = 95
-.ThermalSimulationSetting MaxMeshEdgeLength = 0.0005
+.ThermalSimulationSetting MaxMeshEdgeLength = 0.001
 
 * TerminalPair description lines
 .EndThermalSimulationSetting
@@ -541,18 +544,7 @@ Port2_decap_port_1::pwr Auto GenFromCktInstance="decap_port" GenFromCktModel="ca
 * PowerModel description lines
 .PostLayoutSetup
 .FrequencySetup StartRange = 100000 EndRange = 1e+09
-.FrequencySweep 1.000000e-04MHz 1.000000e+01GHz 0 Adaptive
 .EndFrequencySetup
-.OptiFreqSetup
-.FrequencySweep 1.000000e-04MHz 1.000000e-02GHz 20 Log
-.FrequencySweep 1.000000e+01MHz 1.000000e-01GHz 20 Log
-.FrequencySweep 1.000000e+02MHz 1.000000e+01GHz 40 Log
-.EndOptiFreqSetup
-.EMIOptiFreqSetup
-.FrequencySweep 1.000000e-04MHz 1.000000e-02GHz 20 Log
-.FrequencySweep 1.000000e+01MHz 1.000000e-01GHz 5.000000e+00MHz Linear
-.FrequencySweep 1.000000e+02MHz 1.000000e+01GHz 1.000000e+01MHz Linear
-.EndEMIOptiFreqSetup
 .WhatIfSetup Name = WhatIfDefault
 .EndWhatIfSetup
 .StatisticalSetup Name = StatisticalDefault
@@ -560,18 +552,14 @@ Port2_decap_port_1::pwr Auto GenFromCktInstance="decap_port" GenFromCktModel="ca
 .EndPostLayoutSetup
 .TargetImpOptSetup
 .FrequencySetup StartTime = 0
-.FrequencySweep 1.000000e-04MHz 1.000000e+01GHz 0 Adaptive
 .EndFrequencySetup
 .ICRLRange Auto = 1
 .ICRLRange Type = 1 Auto = 1
 .EndTargetImpOptSetup
 .PreLayoutSetup DoWhatIf = 1
 .FrequencySetup StartRange = 100000 EndRange = 1e+09
-.FrequencySweep 1.000000e-04MHz 1.000000e+01GHz 0 Adaptive
 .EndFrequencySetup
 .OptiFreqSetup StartRange = 100000 EndRange = 1e+08
-.FrequencySweep 1.000000e-04MHz 1.000000e-02GHz 20 Log
-.FrequencySweep 1.000000e+01MHz 1.000000e+01GHz 4.000000e+00MHz Linear
 .EndOptiFreqSetup
 .WhatIfSetup Name = WhatIfDefault
 .EndWhatIfSetup
@@ -583,8 +571,8 @@ Port2_decap_port_1::pwr Auto GenFromCktInstance="decap_port" GenFromCktModel="ca
 	 RiseTime = 0ps %Coupling = 0
 	GroundNets Color = LIME
 	PowerNets Color = RED
-	gnd -> GroundNets Color = 0x0F9006
-	pwr -> PowerNets Color = 0xAF331B
+	gnd -> GroundNets Color = AQUA
+	pwr -> PowerNets Color = FUCHSIA
 .EndNetList
 NetListFlag = 2D555E1C-49FB404C-47334E32-C1E6CAC6
 

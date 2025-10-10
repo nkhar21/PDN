@@ -17,28 +17,79 @@ def canon_node(name: str) -> str:
     # return f"Node{m.group(1)}" if m else name
     return name.strip()
 
-def parse_spd(brd , spd_path: str, ground_net: str = "gnd", power_net: str = "pwr", 
-              ic_port_tag="ic_port", decap_port_tag="decap_port", verbose: bool = False):
+def parse_spd(
+    brd,
+    spd_path: str,
+    ground_net: str = "gnd",
+    power_net: str = "pwr",
+    ic_port_tag="ic_port",
+    decap_port_tag="decap_port",
+    verbose: bool = False,
+):
     """
-    Parse a PowerSI .spd file and populate `brd` with:
-      - brd.bxy: list[np.ndarray(N,2)] board polygon(s) in meters
-      - brd.ic_node_names, brd.ic_via_xy, brd.ic_via_type, brd.ic_via_loc
-      - brd.decap_node_names, brd.decap_via_xy, brd.decap_via_type, brd.decap_via_loc
-      - brd.start_layers, brd.stop_layers, brd.via_type   (0-based)
-      - brd.buried_via_xy, brd.buried_via_type  (optional, may be empty)
-      - brd.top_port_num, brd.bot_port_num  (object arrays of lists)
-    
+    Parse a PowerSI `.spd` file and populate a PDN board object (`brd`)
+    with all geometry, node, and via information required for BEM/CIM analysis.
 
-    Returns (matching your current SPD tuple):
+    This function reconstructs the entire PDN structure — planes, vias, and ports —
+    directly from the SPD file and attaches the extracted data to the board object.
+    It also returns a structured tuple of the same information for convenience.
+
+    The parser extracts and populates the following attributes:
+
+        ─────────────── Board Geometry ───────────────
+        • brd.bxy : list[np.ndarray(N, 2)]
+            List of board polygon coordinates (in meters) for each conductive layer.
+
+        ─────────────── Node and Port Metadata ───────────────
+        • brd.ic_node_names, brd.decap_node_names : list[str]
+            Names of IC and decap connection nodes.
+        • brd.ic_via_xy, brd.decap_via_xy : np.ndarray[:,2]
+            XY coordinates of IC and decap vias (m).
+        • brd.ic_via_type, brd.decap_via_type : np.ndarray[:]
+            Via type flags (1 = power, 0 = ground).
+        • brd.ic_via_loc, brd.decap_via_loc : np.ndarray[:]
+            Cavity location flags (1 = top, 0 = bottom).
+
+        ─────────────── Via Connectivity ───────────────
+        • brd.start_layers, brd.stop_layers : np.ndarray[:]
+            Start/stop layer indices (0-based) for all vias in the board.
+        • brd.via_type : np.ndarray[:]
+            Type flags (1 = power, 0 = ground) for all vias.
+
+        ─────────────── Special Via Categories ───────────────
+        • brd.buried_via_xy, brd.buried_via_type : np.ndarray
+            Buried vias (neither endpoint on top/bottom layer).
+        • brd.blind_via_xy, brd.blind_via_type : np.ndarray
+            Blind vias (one endpoint on top/bottom, other on interior layer).
+        • Each via category also contributes to the global start/stop/type arrays.
+
+        ─────────────── Stackup & Plane Data ───────────────
+        • brd.stackup : np.ndarray[:]
+            Stackup mask where 1 = power layer, 0 = ground-return layer.
+        • Stackup and via data are normalized and deduplicated automatically.
+
+    Returns
+    -------
+    tuple :
         (
-          brd.bxy,
-          brd.ic_via_xy, brd.ic_via_type,
-          brd.start_layers, brd.stop_layers, brd.via_type,
-          brd.decap_via_xy, brd.decap_via_type,
-          stackup_mask,
-          [optional] brd.buried_via_xy, brd.buried_via_type
+            brd.bxy,
+            brd.ic_via_xy, brd.ic_via_type,
+            brd.start_layers, brd.stop_layers, brd.via_type,
+            brd.decap_via_xy, brd.decap_via_type,
+            brd.stackup,
+            brd.buried_via_xy, brd.buried_via_type,
+            brd.blind_via_xy, brd.blind_via_type,
         )
+
+    Notes
+    -----
+    • IC and decap vias are determined from port tags (`ic_port_tag`, `decap_port_tag`).
+    • Buried vias are identified by having both endpoints on interior layers.
+    • Blind vias are identified by having one endpoint on an outer layer and the other on an interior layer.
+    • Through vias (top ↔ bottom) and duplicates are automatically excluded.
+    • The returned tuple mirrors what the main PDN solver (`gen_brd_data`) expects.
     """
+
     log = print if verbose else (lambda *args, **kwargs: None)
 
     text = _read(spd_path, verbose=verbose)
@@ -53,14 +104,14 @@ def parse_spd(brd , spd_path: str, ground_net: str = "gnd", power_net: str = "pw
     node_info = _extract_nodes(text, pwr_net=power_net, gnd_net=ground_net)
     log("\n[SPD] Nodes extracted:\n", len(node_info), "examples:\n", list(node_info.items())[:5])
 
-    # 3) .Connect blocks -> ic_blocks, decap_blocks (preserving order)
+    # 3) .Port blocks -> ic_blocks, decap_blocks (preserving order)
     #ic_blocks, decap_blocks = _extract_connect_blocks(text)
     ic_blocks, decap_blocks = _extract_port_blocks(text, ic_port_tag=ic_port_tag, decap_port_tag=decap_port_tag, pwr_net=power_net)
     log("\n[SPD] IC blocks:", len(ic_blocks), "Decap blocks:", len(decap_blocks))
     log("\nIC blocks: ", ic_blocks if ic_blocks else "N/A")
     log("\nDecap blocks: ", decap_blocks if decap_blocks else "N/A")
 
-    # 4) IC/Decap vias in Connect order (names + xy + type)
+    # 4) IC/Decap vias in Port order (names + xy + type)
     _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks, pwr_net=power_net, gnd_net=ground_net)
     log("\n[SPD] IC vias:", len(getattr(brd, 'ic_node_names', [])),
         "\nDecap vias:", len(getattr(brd, 'decap_node_names', [])))
@@ -69,18 +120,29 @@ def parse_spd(brd , spd_path: str, ground_net: str = "gnd", power_net: str = "pw
     via_lines = _extract_via_lines(text, pwr_net=power_net, gnd_net=ground_net)
     log("[SPD] Via lines extracted:\n", len(via_lines), "examples:\n", via_lines[:5])
 
-    # 6) Start/stop/type arrays for ALL vias (IC+DECAP order as in Connect)
+    # 6) Start/stop/type arrays for ALL vias (IC+DECAP order as in Port)
     _extract_start_stop_type(brd, via_lines, node_info, ic_blocks, decap_blocks)
     log("[SPD] Start/stop/type via arrays:\n", brd.start_layers, brd.stop_layers, brd.via_type)
-    
 
-    # 7) Buried vias (optional)
+    # 7.1) Buried vias
     _fill_buried_vias(brd, via_lines, node_info)
-    if hasattr(brd, 'buried_via_xy'):
-        log("[SPD] Buried vias:", len(brd.buried_via_type))
+    if brd.buried_via_xy.size > 0:
+        log(f"[SPD] Buried vias: {len(brd.buried_via_type)}")
         log("[SPD] Buried via start layers:", brd.start_layers[-len(brd.buried_via_xy):])
         log("[SPD] Buried via stop layers:", brd.stop_layers[-len(brd.buried_via_xy):])
         log("[SPD] Buried via type layers:", brd.via_type[-len(brd.buried_via_xy):])
+    else:
+        log("[SPD] No buried vias detected.")
+
+    # 7.2) Blind vias
+    _fill_blind_vias(brd, via_lines, node_info)
+    if brd.blind_via_xy.size > 0:
+        log(f"[SPD] Blind vias: {len(brd.blind_via_type)}")
+        log("[SPD] Blind via start layers:", brd.start_layers[-len(brd.blind_via_xy):])
+        log("[SPD] Blind via stop layers:", brd.stop_layers[-len(brd.blind_via_xy):])
+        log("[SPD] Blind via type layers:", brd.via_type[-len(brd.blind_via_xy):])
+    else:
+        log("[SPD] No blind vias detected.")
 
 
     # 8) Via cavity location flags from node layers (top=1, bottom=0)
@@ -93,6 +155,7 @@ def parse_spd(brd , spd_path: str, ground_net: str = "gnd", power_net: str = "pw
     # _fill_port_cavity_maps(brd, ic_blocks, decap_blocks)
     # log("[SPD] IC via port/cavity maps:\n", getattr(brd, 'top_port_num', "N/A"))
     # log("[SPD] Decap via port/cavity maps:\n", getattr(brd, 'bot_port_num', "N/A"))
+    
     # 9) Global guards: Via normalization + Via de-duplication for all vias
     _normalize_via_coords(brd, snap_dec=7)
     _normalize_via_types(brd, dtype=np.int32)
@@ -106,13 +169,16 @@ def parse_spd(brd , spd_path: str, ground_net: str = "gnd", power_net: str = "pw
     log(f"[SPD] Stackup mask (full): {brd.stackup}")
 
     # 11) Build return tuple compatible with current main.py
-    ret = [ brd.bxy, brd.ic_via_xy, brd.ic_via_type,
-            brd.start_layers, brd.stop_layers, brd.via_type,
-            brd.decap_via_xy, brd.decap_via_type, brd.stackup,
-    ]
-    if getattr(brd, "buried_via_xy", None) is not None and brd.buried_via_xy.size > 0:
-        ret += [brd.buried_via_xy, brd.buried_via_type]
-    return tuple(ret)
+    ret = (
+        brd.bxy,
+        brd.ic_via_xy, brd.ic_via_type,
+        brd.start_layers, brd.stop_layers, brd.via_type,
+        brd.decap_via_xy, brd.decap_via_type,
+        brd.stackup,
+        brd.buried_via_xy, brd.buried_via_type,
+        brd.blind_via_xy, brd.blind_via_type,
+    )
+    return ret
 
 
 # ---- private helpers (lift logic from your current SPD branch) ---------------
@@ -377,9 +443,11 @@ def _extract_connect_blocks(text: str, ic_port_tag: str = "ic_port", decap_port_
     return ic_blocks, decap_blocks
 
 
-def _extract_port_blocks(
-    text: str, ic_port_tag: str = "ic_port", decap_port_tag: str = "decap_port", pwr_net: str = "pwr"
-) -> tuple:
+def _extract_port_blocks(text: str, 
+                         ic_port_tag: str = "ic_port", 
+                         decap_port_tag: str = "decap_port", 
+                         pwr_net: str = "pwr"
+                         ) -> tuple:
     """
     Return (ic_blocks, decap_blocks) preserving file order, based on *Port description lines*.
 
@@ -673,10 +741,7 @@ def _fill_ic_decap_vias(
     brd.decap_node_names = decap_names
     brd.decap_via_xy = decap_xy
     brd.decap_via_type = decap_type
-
-    # Debug
-    if ic_type.size:
-        print(f"[SPD_MULTI][IC_DBG] total={ic_type.size}, type0={np.sum(ic_type==0)}, type1={np.sum(ic_type==1)}")
+    return
     
 
 def _fill_buried_vias(brd, via_lines, node_info):
@@ -695,25 +760,21 @@ def _fill_buried_vias(brd, via_lines, node_info):
       - If any buried vias exist, append their start/stop/type to the existing arrays.
     """
     if not via_lines:
-        brd.buried_via_xy = np.array([])
-        brd.buried_via_type = np.array([])
-        return
+        raise ValueError("[SPD] No via lines found before calling _fill_buried_vias().")
 
-    # Determine top/bottom signal layer numbers from all nodes present
     layers = [v['layer'] for v in node_info.values()]
     if not layers:
-        brd.buried_via_xy = np.array([])
-        brd.buried_via_type = np.array([])
+        brd.buried_via_xy = np.empty((0, 2), dtype=float)
+        brd.buried_via_type = np.empty((0,), dtype=int)
         return
 
     min_layer = min(layers)
     max_layer = max(layers)
-
     buried_dict = {}
 
     for upper, lower in via_lines:
         if upper not in node_info or lower not in node_info:
-            raise ValueError("node_info missing entry for via endpoints: {}".format((upper, lower)))
+            raise ValueError(f"[SPD] node_info missing entry for via endpoints: {(upper, lower)}")
 
         up = node_info[upper]
         lo = node_info[lower]
@@ -725,39 +786,128 @@ def _fill_buried_vias(brd, via_lines, node_info):
         # Midpoint in mm (rounded to 6)
         x_mm = round((up['x'] + lo['x']) / 2.0, 6)
         y_mm = round((up['y'] + lo['y']) / 2.0, 6)
-        key = (x_mm, y_mm)
+        start_l = min(up['layer'], lo['layer']) - 1  # 0-based
+        stop_l  = max(up['layer'], lo['layer']) - 1  # 0-based
+
+        # Include layer pair in the key to prevent overwriting stacked buried vias
+        key = (x_mm, y_mm, start_l, stop_l)
 
         if key not in buried_dict:
             buried_dict[key] = {
                 'type': 1 if (up['type'] == 1 or lo['type'] == 1) else 0,
-                'start': min(up['layer'], lo['layer']) - 1,  # 0-based
-                'stop':  max(up['layer'], lo['layer']) - 1   # 0-based
+                'start': start_l,
+                'stop':  stop_l,
             }
 
+    if not buried_dict:
+        brd.buried_via_xy = np.empty((0, 2), dtype=float)
+        brd.buried_via_type = np.empty((0,), dtype=int)
+        return
+
     # Build arrays (in meters for XY), sort, and attach to brd
-    if buried_dict:
-        buried_xy_m   = np.array([[x * 1e-3, y * 1e-3] for (x, y) in buried_dict.keys()], dtype=float)
-        buried_type   = np.array([v['type']  for v in buried_dict.values()], dtype=int)
-        buried_start  = np.array([v['start'] for v in buried_dict.values()], dtype=int)
-        buried_stop   = np.array([v['stop']  for v in buried_dict.values()], dtype=int)
+    buried_xy_m = np.array([[x * 1e-3, y * 1e-3] for (x, y, _, _) in buried_dict.keys()], dtype=float)
+    buried_type = np.array([v['type'] for v in buried_dict.values()], dtype=int)
+    buried_start = np.array([v['start'] for v in buried_dict.values()], dtype=int)
+    buried_stop = np.array([v['stop'] for v in buried_dict.values()], dtype=int)
 
-        # Sort by x asc, then y desc (same as lexsort((-y, x)))
-        order = np.lexsort((-buried_xy_m[:, 1], buried_xy_m[:, 0]))
-        brd.buried_via_xy   = buried_xy_m[order]
-        brd.buried_via_type = buried_type[order]
-        buried_start        = buried_start[order]
-        buried_stop         = buried_stop[order]
-    else:
-        brd.buried_via_xy   = np.array([])
-        brd.buried_via_type = np.array([])
-        buried_start        = np.array([], dtype=int)
-        buried_stop         = np.array([], dtype=int)
+    order = np.lexsort((-buried_xy_m[:, 1], buried_xy_m[:, 0]))
+    brd.buried_via_xy = buried_xy_m[order]
+    brd.buried_via_type = buried_type[order]
+    buried_start = buried_start[order]
+    buried_stop = buried_stop[order]
 
-    # Append buried start/stop/type to the existing arrays if any exist
-    if buried_start.size > 0 and buried_stop.size > 0:
-        brd.start_layers = np.concatenate([np.asarray(brd.start_layers, dtype=int), buried_start])
-        brd.stop_layers  = np.concatenate([np.asarray(brd.stop_layers,  dtype=int), buried_stop])
-        brd.via_type     = np.concatenate([np.asarray(brd.via_type,     dtype=int), brd.buried_via_type])
+    # Append to global via/layer arrays
+    brd.start_layers = np.concatenate([np.asarray(brd.start_layers, dtype=int), buried_start])
+    brd.stop_layers  = np.concatenate([np.asarray(brd.stop_layers,  dtype=int), buried_stop])
+    brd.via_type     = np.concatenate([np.asarray(brd.via_type,     dtype=int), brd.buried_via_type])
+    return
+
+def _fill_blind_vias(brd, via_lines, node_info):
+    """
+    Compute brd.blind_via_xy, brd.blind_via_type, and merge their
+    start/stop/type into brd.start_layers, brd.stop_layers, brd.via_type.
+
+    Rules:
+      - A via is considered *blind* if one endpoint is on the top or bottom layer,
+        and the other endpoint is on an interior layer.
+      - Midpoint key: ((x_u + x_l)/2, (y_u + y_l)/2, start_layer, stop_layer), rounded to 6 decimals.
+      - Each unique midpoint-layer pair produces one blind via with:
+          type = 1 if either endpoint is PWR, else 0
+          start = min(layer_u, layer_l) - 1   (0-based)
+          stop  = max(layer_u, layer_l) - 1   (0-based)
+      - Results are sorted by x ascending, then y descending.
+      - If any blind vias exist, append their start/stop/type to the existing arrays.
+    """
+    if not via_lines:
+        raise ValueError("[SPD] No via lines found before calling _fill_blind_vias().")
+
+    layers = [v['layer'] for v in node_info.values()]
+    if not layers:
+        brd.blind_via_xy = np.empty((0, 2), dtype=float)
+        brd.blind_via_type = np.empty((0,), dtype=int)
+        return
+
+    min_layer = min(layers)
+    max_layer = max(layers)
+    blind_dict = {}
+
+    for upper, lower in via_lines:
+        if upper not in node_info or lower not in node_info:
+            raise ValueError(f"[SPD] node_info missing entry for via endpoints: {(upper, lower)}")
+
+        up = node_info[upper]
+        lo = node_info[lower]
+
+        # Skip if both endpoints are interior (buried) or both top/bottom (through)
+        if (up['layer'] not in (min_layer, max_layer)) and (lo['layer'] not in (min_layer, max_layer)):
+            continue  # buried
+        if (up['layer'] == min_layer and lo['layer'] == max_layer) or (up['layer'] == max_layer and lo['layer'] == min_layer):
+            continue  # through via
+
+        # Determine if either node belongs to IC or decap ports (already handled elsewhere)
+        ic_nodes = set(getattr(brd, "ic_node_names", []))
+        decap_nodes = set(getattr(brd, "decap_node_names", []))
+        if (upper in ic_nodes or lower in ic_nodes or upper in decap_nodes or lower in decap_nodes):
+            continue  # skip IC/decap vias
+
+        # Midpoint in mm (rounded)
+        x_mm = round((up['x'] + lo['x']) / 2.0, 6)
+        y_mm = round((up['y'] + lo['y']) / 2.0, 6)
+        start_l = min(up['layer'], lo['layer']) - 1
+        stop_l  = max(up['layer'], lo['layer']) - 1
+
+        key = (x_mm, y_mm, start_l, stop_l)
+
+        if key not in blind_dict:
+            blind_dict[key] = {
+                'type': 1 if (up['type'] == 1 or lo['type'] == 1) else 0,
+                'start': start_l,
+                'stop':  stop_l,
+            }
+
+    if not blind_dict:
+        brd.blind_via_xy = np.empty((0, 2), dtype=float)
+        brd.blind_via_type = np.empty((0,), dtype=int)
+        return
+
+    # Build arrays (in meters)
+    blind_xy_m = np.array([[x * 1e-3, y * 1e-3] for (x, y, _, _) in blind_dict.keys()], dtype=float)
+    blind_type = np.array([v['type'] for v in blind_dict.values()], dtype=int)
+    blind_start = np.array([v['start'] for v in blind_dict.values()], dtype=int)
+    blind_stop = np.array([v['stop'] for v in blind_dict.values()], dtype=int)
+
+    order = np.lexsort((-blind_xy_m[:, 1], blind_xy_m[:, 0]))
+    brd.blind_via_xy = blind_xy_m[order]
+    brd.blind_via_type = blind_type[order]
+    blind_start = blind_start[order]
+    blind_stop = blind_stop[order]
+
+    # Append to global via/layer arrays
+    brd.start_layers = np.concatenate([np.asarray(brd.start_layers, dtype=int), blind_start])
+    brd.stop_layers  = np.concatenate([np.asarray(brd.stop_layers,  dtype=int), blind_stop])
+    brd.via_type     = np.concatenate([np.asarray(brd.via_type,     dtype=int), brd.blind_via_type])
+    return
+
 
 def _fill_via_locs(brd, node_info):
     """
@@ -971,6 +1121,7 @@ def _infer_stackup_mask(text: str, pwr_net: str = "pwr", gnd_net: str = "gnd", n
     return mask
 
 
+################# POST-PROCESSING HELPERS #################
 # --- snapping & de-dup helpers ---
 
 def _snap(arr, decimals=6):
