@@ -168,6 +168,9 @@ def parse_spd(
     log(f"[SPD] Stackup mask: len={len(brd.stackup)}  PWR={int(np.sum(brd.stackup))}  GND={int(len(brd.stackup)-np.sum(brd.stackup))}")
     log(f"[SPD] Stackup mask (full): {brd.stackup}")
 
+    # Print a via table summary
+    _print_via_table(brd, log)
+
     # 11) Build return tuple compatible with current main.py
     ret = (
         brd.bxy,
@@ -1157,13 +1160,16 @@ def _to_keys(arr, rdec=9):
 
 def _dedupe_across_groups(brd, eps=1e-7, rdec=9):
     """
-    Priority: IC -> Decap -> Buried.
+    Priority: IC -> Decap -> Buried -> Blind.
     Later groups nudge to avoid collisions with the union of earlier groups.
     """
+    # within-group uniques first
     _dedupe_group_inplace(brd.ic_via_xy,    eps=eps, rdec=rdec)
     _dedupe_group_inplace(brd.decap_via_xy, eps=eps, rdec=rdec)
     if getattr(brd, "buried_via_xy", None) is not None and np.size(brd.buried_via_xy):
         _dedupe_group_inplace(brd.buried_via_xy, eps=eps, rdec=rdec)
+    if getattr(brd, "blind_via_xy", None) is not None and np.size(brd.blind_via_xy):
+        _dedupe_group_inplace(brd.blind_via_xy, eps=eps, rdec=rdec)
 
     seen = _to_keys(brd.ic_via_xy, rdec=rdec)
 
@@ -1187,15 +1193,27 @@ def _dedupe_across_groups(brd, eps=1e-7, rdec=9):
             seen.add(key)
             brd.buried_via_xy[i] = [x, y]
 
+    if getattr(brd, "blind_via_xy", None) is not None and np.size(brd.blind_via_xy):
+        for i in range(len(brd.blind_via_xy)):
+            x, y = float(brd.blind_via_xy[i][0]), float(brd.blind_via_xy[i][1])
+            key = (round(x, rdec), round(y, rdec))
+            while key in seen:
+                x += eps; y += eps
+                key = (round(x, rdec), round(y, rdec))
+            seen.add(key)
+            brd.blind_via_xy[i] = [x, y]
+
+
 def _normalize_via_coords(brd, snap_dec: int = 7):
     """
     Snap via coordinate arrays to `snap_dec` decimals (meters).
     Safely no-ops if an array attr is missing or empty.
     """
-    for attr in ("ic_via_xy", "decap_via_xy", "buried_via_xy"):
+    for attr in ("ic_via_xy", "decap_via_xy", "buried_via_xy", "blind_via_xy"):
         arr = getattr(brd, attr, None)
         if arr is not None and np.size(arr):
             setattr(brd, attr, _snap(arr, snap_dec))
+
 
 
 def _normalize_via_types(brd, dtype=np.int32):
@@ -1203,25 +1221,21 @@ def _normalize_via_types(brd, dtype=np.int32):
     Cast via type arrays to a consistent dtype.
     Safely no-ops if an array attr is missing.
     """
-    for attr in ("ic_via_type", "decap_via_type", "buried_via_type"):
+    for attr in ("ic_via_type", "decap_via_type", "buried_via_type", "blind_via_type"):
         arr = getattr(brd, attr, None)
         if arr is not None:
             setattr(brd, attr, np.asarray(arr, dtype))
 
+
 def _dedupe_and_count(brd, eps: float = 1e-7, rdec: int = 9) -> tuple[int, int]:
     """
-    Run global via de-duplication (IC → Decap → Buried) and report
-    the number of unique coordinates before/after.
-
-    Returns
-    -------
-    pre_unique  : int   # distinct (x,y) across IC∪Decap∪Buried before dedupe
-    post_unique : int   # distinct (x,y) across IC∪Decap∪Buried after  dedupe
+    Run global via de-duplication (IC → Decap → Buried → Blind) and report counts.
     """
     pre_unique = len(
         _to_keys(getattr(brd, "ic_via_xy", None), rdec=rdec)
         | _to_keys(getattr(brd, "decap_via_xy", None), rdec=rdec)
         | _to_keys(getattr(brd, "buried_via_xy", None), rdec=rdec)
+        | _to_keys(getattr(brd, "blind_via_xy", None),  rdec=rdec)
     )
 
     _dedupe_across_groups(brd, eps=eps, rdec=rdec)
@@ -1230,6 +1244,65 @@ def _dedupe_and_count(brd, eps: float = 1e-7, rdec: int = 9) -> tuple[int, int]:
         _to_keys(getattr(brd, "ic_via_xy", None), rdec=rdec)
         | _to_keys(getattr(brd, "decap_via_xy", None), rdec=rdec)
         | _to_keys(getattr(brd, "buried_via_xy", None), rdec=rdec)
+        | _to_keys(getattr(brd, "blind_via_xy", None),  rdec=rdec)
     )
 
     return pre_unique, post_unique
+
+
+
+############ info print for via summary ############
+
+def _print_via_table(brd, log=print):
+    """
+    Print a formatted summary of all vias (IC, Decap, Buried, Blind)
+    after parsing. Shows XY coordinates, start/stop layers, via type,
+    and source category.
+
+    Parameters
+    ----------
+    brd : PDN
+        Board object populated by parse_spd().
+    log : callable, optional
+        Logging function (default = print).
+    """
+    def _safe(a):
+        return a if a.size > 0 else np.empty((0, 2), dtype=float)
+
+    # Stack all coordinates in the same order as global start/stop/type arrays
+    via_xy_all = np.vstack([
+        _safe(brd.ic_via_xy),
+        _safe(brd.decap_via_xy),
+        _safe(brd.buried_via_xy),
+        _safe(brd.blind_via_xy),
+    ])
+
+    start_all = np.asarray(brd.start_layers, dtype=int)
+    stop_all  = np.asarray(brd.stop_layers,  dtype=int)
+    type_all  = np.asarray(brd.via_type,     dtype=int)
+
+    # Category boundaries for labeling
+    n_ic     = brd.ic_via_xy.shape[0]
+    n_decap  = brd.decap_via_xy.shape[0]
+    n_buried = brd.buried_via_xy.shape[0]
+    n_blind  = brd.blind_via_xy.shape[0]
+
+    log("\n[SPD] ==== Final VIA TABLE (IC + DECAP + BURIED + BLIND) ====")
+    log(f"[SPD] Total vias: {via_xy_all.shape[0]}")
+
+    for i, (x, y) in enumerate(via_xy_all):
+        s = start_all[i] if i < start_all.size else None
+        t = stop_all[i]  if i < stop_all.size  else None
+        vt = type_all[i] if i < type_all.size  else None
+
+        # Determine via category based on index
+        if i < n_ic:
+            cat = "IC"
+        elif i < n_ic + n_decap:
+            cat = "Decap"
+        elif i < n_ic + n_decap + n_buried:
+            cat = "Buried"
+        else:
+            cat = "Blind"
+
+        log(f"[VIA {i:02d}] xy=({x:.9f}, {y:.9f}) start={s} stop={t} type={vt}  <-- {cat}")

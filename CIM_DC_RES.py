@@ -172,7 +172,7 @@ def planesresistance(bxy_b, via_xy_b, via_r, d):
     return rb
 
 
-def org_resistance(stackup, via_type, start_layer, stop_layer, via_xy, decap_via_type, decap_via_xy, decap_via_loc, ic_via_xy, ic_via_type, ic_via_loc):
+def org_resistance(stackup, via_type, start_layers, stop_layers, via_xy, decap_via_type, decap_via_xy, decap_via_loc, ic_via_xy, ic_via_type, ic_via_loc):
 
 # Generate branches based on resistors (consider resistance within plane → all positions are independent nodes)
 # Create vertical branches + connect nodes on the same layer using layer_type-based rules
@@ -183,7 +183,7 @@ def org_resistance(stackup, via_type, start_layer, stop_layer, via_xy, decap_via
     vertical_nodes = []
     xy_node_map = {}
 
-    top_layer = np.min(start_layer)
+    top_layer = np.min(start_layers)
 
     # Identify IC vias
     is_ic_via = np.zeros(len(via_xy), dtype=bool)
@@ -203,8 +203,8 @@ def org_resistance(stackup, via_type, start_layer, stop_layer, via_xy, decap_via
         x = round(via_xy[via_n][0], 6)
         y = round(via_xy[via_n][1], 6)
 
-        start_cavity = start_layer[via_n]
-        end_cavity = stop_layer[via_n]
+        start_cavity = start_layers[via_n]
+        end_cavity = stop_layers[via_n]
         key1 = (x, y, start_cavity)
 
         # Condition 1: If top layer → create shared node using (x,y,type)
@@ -271,7 +271,7 @@ def org_resistance(stackup, via_type, start_layer, stop_layer, via_xy, decap_via
             if not found_match:
                 break
 
-# === Add horizontal branches ===
+    # === Add horizontal branches ===
     
     # Create mapping from node to via_idx based on vertical_nodes
     node_to_via_idx = {node: via_idx for (lay, node, vtype, via_idx) in vertical_nodes}
@@ -409,135 +409,130 @@ def org_resistance(stackup, via_type, start_layer, stop_layer, via_xy, decap_via
     return branch
 
 
-def main_res(brd, stackup, die_t, d, start_layer, stop_layer, decap_via_type, decap_via_xy, decap_via_loc, ic_via_xy, ic_via_type, ic_via_loc):
-    
-    via_xy = np.concatenate((brd.ic_via_xy, brd.decap_via_xy, brd.buried_via_xy), axis=0)
-    via_type = np.concatenate((brd.ic_via_type, brd.decap_via_type, brd.buried_via_type), axis=0)
+def main_res(brd):
+    """
+    Compute DC impedance using the Contour Integral Method (CIM)
+    and the Node Voltage Method (NVM).
 
-    branch = org_resistance(stackup, via_type, start_layer, stop_layer, via_xy, decap_via_type, decap_via_xy, decap_via_loc, ic_via_xy, ic_via_type, ic_via_loc)
+    Parameters
+    ----------
+    brd : PDN
+        PDN board object containing:
+          - brd.stackup, brd.die_t, brd.d, brd.start_layer, brd.stop_layer
+          - brd.ic_via_xy, brd.decap_via_xy, brd.buried_via_xy, brd.blind_via_xy
+          - brd.ic_via_type, brd.decap_via_type, brd.buried_via_type, brd.blind_via_type
+          - brd.ic_via_loc,  brd.decap_via_loc
+          - brd.via_r, brd.bxy
+    """
+
+    # --- Via coordinates and types ---
+    via_xy = np.concatenate(
+        (brd.ic_via_xy, brd.decap_via_xy, brd.buried_via_xy, brd.blind_via_xy), axis=0
+    )
+    via_type = np.concatenate(
+        (brd.ic_via_type, brd.decap_via_type, brd.buried_via_type, brd.blind_via_type), axis=0
+    )
+
+    # --- Build branch list (resistive network) ---
+    branch = org_resistance(
+        stackup=brd.stackup,
+        via_type=via_type,
+        start_layers=brd.start_layers,
+        stop_layers=brd.stop_layers,
+        via_xy=via_xy,
+        decap_via_type=brd.decap_via_type,
+        decap_via_xy=brd.decap_via_xy,
+        decap_via_loc=brd.decap_via_loc,
+        ic_via_xy=brd.ic_via_xy,
+        ic_via_type=brd.ic_via_type,
+        ic_via_loc=brd.ic_via_loc,
+    )
 
     branch_num = branch.shape[0]
     node_num = int(np.max(branch[:, [1, 2]]))
-    branch_verti = np.where((branch[:, 3] == branch[:, 4]) & (branch[:, 3] != -1))[0] 
+    branch_verti = np.where((branch[:, 3] == branch[:, 4]) & (branch[:, 3] != -1))[0]
 
-    # A matrix
-    A = np.zeros((node_num+1, branch_num))
-    for i in range(branch.shape[0]):
+    # --- A matrix (node–branch incidence) ---
+    A = np.zeros((node_num + 1, branch_num))
+    for i in range(branch_num):
         A[int(branch[i, 1]), i] = 1
         A[int(branch[i, 2]), i] = -1
 
-    # Initialize zb
+    # --- Initialize branch impedance matrix (zb) ---
     via_radius = brd.via_r
-    sigma = 5.814e7
-    via_r = 1 / (np.pi * sigma * via_radius ** 2)  
+    sigma = 5.814e7  # copper conductivity (S/m)
+    via_r = 1 / (np.pi * sigma * via_radius**2)
+    zb = np.eye(branch_num) * 1e-5  # initial placeholder resistance
 
-    zb = np.eye(branch_num) * 1e-5  
-    for i in range(branch.shape[0]):
+    # --- Vertical branches (vias) ---
+    for i in range(branch_num):
         vj = branch[i, 4]
-
         if vj == -1:
-            zb[i, i] = 1e-5  # “special” branches (e.g., decap links) keep tiny placeholder
-
+            zb[i, i] = 1e-5  # decap link placeholder
         elif i in branch_verti:
             layer_b = int(branch[i, 6])
-            zb[i, i] = die_t[layer_b]+ d[layer_b]* via_r 
+            zb[i, i] = brd.die_t[layer_b] + brd.d_r[layer_b] * via_r
 
+    # --- Refine vertical branch resistances with stackup thickness ---
     for i in branch_verti:
         start_lay = int(branch[i, 7])
         stop_lay = int(branch[i, 8])
         if start_lay > stop_lay:
-            start_lay, stop_lay = stop_lay, start_lay  
+            start_lay, stop_lay = stop_lay, start_lay
+
         total = 0.0
-        for lay in range(start_lay, stop_lay + 1):  # inclusive range from start to stop layer
-            if 0 <= lay < len(d):
+        for lay in range(start_lay, stop_lay + 1):
+            if 0 <= lay < len(brd.d_r):
                 if lay == stop_lay:
-                    # Do NOT include dielectric thickness on the last layer
-                    total += d[lay]  # last layer: add only copper thickness
-
-                elif lay < len(die_t):
-                    # Normal case: include both conductor and dielectric thickness
-                    total += d[lay] + die_t[lay] # middle: copper + dielectric thickness
-
+                    total += brd.d_r[lay]  # last layer: copper only
+                elif lay < len(brd.die_t):
+                    total += brd.d_r[lay] + brd.die_t[lay]
                 else:
-                    # In case die_t is shorter than d, add only conductor thickness
-                    total += d[lay] # safety branch if die_t shorter
-
+                    total += brd.d_r[lay]
             else:
-                print(f"[Warning] layer index {lay} out of bounds for d/die_t → skipped")
+                print(f"[Warning] Layer {lay} out of bounds for d/die_t → skipped")
 
         zb[i, i] = total * via_r
 
-    bxy = brd.bxy  # polygon shape
-
-    #If bxy is 3D with shape (1, N, 2): single shape only
-    if isinstance(bxy, np.ndarray) and bxy.ndim == 3 and bxy.shape[0] == 1 and bxy.shape[2] == 2:
-        bxy = bxy[0]  
-
-    # If single (N×2), duplicate into a list with one polygon per stackup layer
-    # Check again and duplicate for each layer
+    # --- Handle bxy polygons per layer ---
+    bxy = brd.bxy
+    if isinstance(bxy, np.ndarray) and bxy.ndim == 3 and bxy.shape[0] == 1:
+        bxy = bxy[0]
     if isinstance(bxy, np.ndarray) and bxy.ndim == 2 and bxy.shape[1] == 2:
-        num_layers = len(stackup)
+        num_layers = len(brd.stackup)
         bxy = [bxy.copy() for _ in range(num_layers)]
 
+    # --- Horizontal (plane) branches ---
     horizontal_branches = branch[(branch[:, 0] > branch_verti.shape[0] - 1)]
     target_layers = np.unique(horizontal_branches[:, 6].astype(int))
 
     for i in target_layers:
         corres_branches = np.where(branch[:, 6] == i)
-        branches = branch[corres_branches]
-        # branches = branches[
-        #     (branches[:, 0] > branch_verti.shape[0] - 1) & (branches[:, 5] != -1)
-        # ]
-        branches = branches[
-            (branches[:, 0] > branch_verti.shape[0] - 1) 
-        ]
-
-        # skip if no horizontal branch found
-        if branches.shape[0] == 0:
+        branches_i = branch[corres_branches]
+        branches_i = branches_i[(branches_i[:, 0] > branch_verti.shape[0] - 1)]
+        if branches_i.shape[0] == 0:
             continue
 
-        values_col3 = branches[:, 3]
-        values_col4 = branches[:, 4]
-        combined_values = np.concatenate((values_col3, values_col4))
-        unique_values = np.unique(combined_values)
-        via_xy_b = via_xy[unique_values.astype(int)]
-
-        #for i in range(len(bxy)): # ChatGPT change nk
-        bxy_b = np.array(bxy[i]) 
-
+        combined_values = np.unique(np.concatenate((branches_i[:, 3], branches_i[:, 4])))
+        via_xy_b = via_xy[combined_values.astype(int)]
+        bxy_b = np.array(bxy[i])
         via_xy_b = np.vstack([via_xy_b, bxy_b[1] + 1e-5])
-        rb = planesresistance(bxy_b, via_xy_b, via_radius, d[i])
 
+        rb = planesresistance(bxy_b, via_xy_b, via_radius, brd.d_r[i])
 
-        for j in range(branches.shape[0]):
-            r1 = np.where(unique_values == branches[j, 3])
-            r2 = np.where(unique_values == branches[j, 4])
-            idx1 = r1[0][0]
-            idx2 = r2[0][0]
-            branch_idx = int(branches[j, 0])
-
+        for j in range(branches_i.shape[0]):
+            idx1 = np.where(combined_values == branches_i[j, 3])[0][0]
+            idx2 = np.where(combined_values == branches_i[j, 4])[0][0]
+            branch_idx = int(branches_i[j, 0])
             zb[branch_idx, branch_idx] = abs(rb[idx1, idx2])
 
-
-    max_node = int(np.max(branch[:, [1, 2]]))  
-
-    # for i in range(0, 22):
-    #     zb[i,i]=1
-
-    # After computation, generate impedance matrix
+    # --- Solve circuit using Node Voltage Method ---
     at = np.transpose(A)
     yb = np.linalg.inv(zb)
-
     yn = np.matmul(A, yb)
     yn1 = np.matmul(yn, at)
-    yn2 = np.delete(yn1, max_node, 0)
-    yn3 = np.delete(yn2, max_node, 1)
-
+    yn2 = np.delete(yn1, node_num, 0)
+    yn3 = np.delete(yn2, node_num, 1)
     zn2 = np.linalg.inv(yn3)
 
-    return zn2[0][0]
-
-
-
-
-
+    return zn2[0, 0]

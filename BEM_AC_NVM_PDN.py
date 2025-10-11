@@ -273,6 +273,7 @@ def calc_lpul_bem(via_xy, via_r, sxy, option='v1', n=6):
                 elif k != m and k >= sxy.shape[0]:
                     r_km = sqrt((via_xy[m - sxy.shape[0], 0] - via_xy[k - sxy.shape[0], 0]) ** 2
                                 + (via_xy[m - sxy.shape[0], 1] - via_xy[k - sxy.shape[0], 1]) ** 2)
+                    r_km = max(r_km, 1e-10) # guard against zero distance (when xy of two vias are identical)
                     G_k[k] = -u * d / pi * (log(r_km / R) - r_km ** 2 / (2 * R ** 2))
                 else:
                     xm = via_xy[m - sxy.shape[0], 0]
@@ -280,6 +281,7 @@ def calc_lpul_bem(via_xy, via_r, sxy, option='v1', n=6):
                     xk = (sxy[k, 0] + sxy[k, 2]) / 2
                     yk = (sxy[k, 1] + sxy[k, 3]) / 2
                     r_km = sqrt((xm - xk) ** 2 + (ym - yk) ** 2)
+                    r_km = max(r_km, 1e-10) # guard against zero distance (when xy of two vias are identical)
                     G_k[k] = -u * d / pi * (log(r_km / R) - r_km ** 2 / (2 * R ** 2))
             G = Gh_k + G_k
             L = np.dot(E_D_inv, G)
@@ -1228,11 +1230,12 @@ class PDN():
         self.ic_node_names = np.array([])  # names of IC nodes (nk)
         self.decap_node_names = np.array([])  # names of decap nodes (nk)
         self.top_port_num = np.array([])  # ports on the top layer (nk)
-        self.bot_port_num = np.array([])  # on the bottom layer (nk
+        self.bot_port_num = np.array([])  # on the bottom layer (nk)
 
-        self.stackup = np.array([])
-        self.die_t = np.array([])
-        self.er_list = [] #change
+        self.stackup = np.array([]) # stackup mask, 1 for pwr, 0 for gnd, 2 for floating layer
+        self.die_t = np.array([]) # dielectric layer thickness (m)
+        self.er_list = [] # dielectric constant for each layer
+        self.d_r = np.array([])  # signal layer thickness (m)
         self.brd = np.array([])
 
         self.seg_len = np.array([])  # segment length of the boundary
@@ -1264,6 +1267,9 @@ class PDN():
         self.via_xy = np.array([])  # x,y locations of all vias
         self.via_type = np.array([])  # type of all vias. 1 for pwr, 0 for gnd
         self.via_loc = np.array([])  # location of all vias. 1 for top, 0 for bot
+
+        self.start_layers = np.array([])  # start layers of the segments
+        self.stop_layers = np.array([])  # stop layers of the segments
 
         self.decap = []  # matrix of 6 columns: xp, yp, xg, yg, model_num, top_bot ('top' or 'bot')
 
@@ -1531,9 +1537,7 @@ class PDN():
         branch_merge_list = []  # (kept, but empty per your code)
 
         # ---- Merge L and build incidence ----
-        L_new_inv, old_branch_nodes, new_branch_nodes, new_old_node_map = merge_L_big(
-            L_big, branch_merge_list, branch
-        )
+        L_new_inv, old_branch_nodes, new_branch_nodes, new_old_node_map = merge_L_big(L_big, branch_merge_list, branch)
 
         freq = self.freq.f
         new_branch_nodes_w_c = deepcopy(new_branch_nodes)

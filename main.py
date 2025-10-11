@@ -1,7 +1,5 @@
-import re
 import numpy as np
 import matplotlib.pyplot as plt
-import pathlib
 
 from BEM_AC_NVM_PDN import PDN
 from CIM_DC_RES import main_res
@@ -45,22 +43,9 @@ def gen_brd_data(
     brd.die_t = die_t
     brd.d_r = d_r
 
-    # --- 4) Z computation ---
-    res_matrix = main_res(
-        brd=brd,
-        die_t=die_t,
-        d=d_r,
-        stackup=brd.stackup,
-        start_layer=brd.start_layers,
-        stop_layer=brd.stop_layers,
-        decap_via_type=brd.decap_via_type,
-        decap_via_xy=brd.decap_via_xy,
-        decap_via_loc=brd.decap_via_loc,
-        ic_via_xy=brd.ic_via_xy,
-        ic_via_loc=brd.ic_via_loc,
-        ic_via_type=brd.ic_via_type
-        
-    )
+    # --- 4) R computation ---
+    res_matrix = main_res(brd=brd)
+    
     # --- 4) Z computation ---
     z = brd.calc_z_fast(res_matrix=res_matrix, verbose=True)
 
@@ -78,26 +63,6 @@ def gen_brd_data(
         brd.buried_via_xy,
         brd.buried_via_type,
     )
-
-
-def save2s(self, z, filename, path, z0=50):
-    brd = rf.Network()
-    brd.z0 = z0
-    brd.frequency = self.freq
-    brd.s = rf.network.z2s(z)
-    brd.write_touchstone(path + filename + ".s" + str(z.shape[1]) + "p")
-    freq = np.logspace(np.log10(10e6), np.log10(200e6), 201)
-
-def detect_ic_port_index(touchstone_path: str) -> int:
-    idx = None
-    for ln in pathlib.Path(touchstone_path).read_text(encoding="utf-8", errors="ignore").splitlines():
-        m = re.match(r"!\s*Port(\d+).*ic_port", ln, flags=re.IGNORECASE)
-        if m:
-            idx = int(m.group(1)) - 1  # zero-based
-            break
-    return idx if idx is not None else 2  # fallback to 2 (port 3) for b4_1.S3P
-
-
 
 if __name__ == '__main__':
 
@@ -122,12 +87,9 @@ if __name__ == '__main__':
     if np.isnan(np.sum(z)):
         print("[Error] Z contains NaN values — skipping")
 
-    ic_port_index = detect_ic_port_index(touchstone_path)
-    
     board_num = "4_1"
     board_name = f"board{board_num}"
     
-    save2s(brd, z, board_name, BASE_PATH)
     t0 = time.time()
 
     fstart = 10e3
@@ -144,7 +106,7 @@ if __name__ == '__main__':
         fig, ax = plot_z_matrix(
             freq=freq,
             z_matrix=z,
-            indices=(ic_port_index, ic_port_index),
+            indices=(0, 0), # assuming IC port is the first port
             legend=["Python Z11"],
             scale=("log","log"),
             xlabel="Frequency (Hz)",
@@ -159,7 +121,7 @@ if __name__ == '__main__':
         _, ax = plot_z_matrix(
             freq=freq,
             z_matrix=input_net,
-            indices=(ic_port_index, ic_port_index),
+            indices=(0, 0), # assuming IC port is the first port
             legend=["PowerSI Z11"],
             color="red",
             linestyle="--",

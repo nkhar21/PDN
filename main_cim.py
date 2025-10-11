@@ -23,20 +23,7 @@ def gen_brd_data(
     brd.d_r = d_r
 
     # --- 3) IC R11 computation ---
-    res_matrix = main_res(
-        brd=brd,
-        die_t=die_t,
-        d=d_r,
-        stackup=brd.stackup,
-        start_layer=brd.start_layers,
-        stop_layer=brd.stop_layers,
-        decap_via_type=brd.decap_via_type,
-        decap_via_xy=brd.decap_via_xy,
-        decap_via_loc=brd.decap_via_loc,
-        ic_via_xy=brd.ic_via_xy,
-        ic_via_loc=brd.ic_via_loc,
-        ic_via_type=brd.ic_via_type
-    )
+    res_matrix = main_res(brd=brd)
 
     return res_matrix
 
