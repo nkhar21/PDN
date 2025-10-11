@@ -46,7 +46,7 @@ def gen_brd_data(
     # --- 4) R computation ---
     res_matrix = main_res(brd=brd)
     
-    # --- 4) Z computation ---
+    # --- 5) Z computation ---
     z = brd.calc_z_fast(res_matrix=res_matrix, verbose=True)
 
     return (

@@ -19,10 +19,10 @@ BASE_DIR = Path(__file__).resolve().parent
 # input_path = r"input files\board 2\b2.spd"
 # touchstone_path = r"input files\board 2\b2.S5P"
 
-# # Board 2_2
-# stackup_path = r"input files\board 2.2\b2_2_stackup.csv"
-# input_path = r"input files\board 2.2\b2_2.spd"
-# touchstone_path = r"input files\board 2.2\b2_2.S2P"
+# Board 2_2
+stackup_path = r"input files\board 2.2\b2_2_stackup.csv"
+input_path = r"input files\board 2.2\b2_2.spd"
+touchstone_path = r"input files\board 2.2\b2_2.S2P"
 
 # # Board 3
 # stackup_path = r"input files\board 3\b3_stackup.csv"
@@ -80,11 +80,11 @@ BASE_DIR = Path(__file__).resolve().parent
 # input_path = r"input files\board 7\b7_2.spd"
 # touchstone_path = r"input files\board 7\b7_2.S1P"
 
-# Board 8 - first PowerDC
-stackup_path = r"input files\board 8\b8_stackup.csv"
-input_path = r"input files\board 8\b8.spd"
-touchstone_path = r"input files\board 8\b8.S2P"
-R11_PowerSI = open(r"input files\board 8\R.txt").read().strip()
+# # Board 8 - first PowerDC
+# stackup_path = r"input files\board 8\b8_stackup.csv"
+# input_path = r"input files\board 8\b8.spd"
+# touchstone_path = r"input files\board 8\b8.S2P"
+# R11_PowerSI = open(r"input files\board 8\R.txt").read().strip()
 
 # # # Board 9 - buried via fix
 # stackup_path = r"input files\board 9\b9_stackup.csv"
