@@ -1,51 +1,80 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
 import numpy as np
-from typing import Optional
+from numpy.typing import NDArray
+
 from generator.pdn_enums import NetType
 
+
+IntArray = NDArray[np.int_]
+FloatArray = NDArray[np.float64]
+
+
+@dataclass(frozen=True)
 class Stackup:
     """
     PCB stackup description.
-    Holds mask of conductor layers (NetType), dielectric thicknesses,
-    permittivities, and conductor thicknesses.
+    - stackup_mask: per-layer NetType mask (0=GND, 1=PWR) of shape (num_layers,)
+    - die_t: dielectric thicknesses (m) of shape (num_layers-1,)
+    - er_list: relative permittivities of shape (num_layers-1,)
+    - d_r: conductor thicknesses (m) of shape (num_layers,)
     """
+    num_layers: int
+    stackup_mask: IntArray
+    die_t: FloatArray
+    er_list: FloatArray
+    d_r: FloatArray
 
-    def __init__(self, num_layers: int,
-                 stackup_mask,
-                 die_t,
-                 er_list,
-                 d_r):
-        self.num_layers: int = num_layers
-
-        # --- Convert to arrays ---
-        self.stackup_mask: np.ndarray = np.asarray(stackup_mask, dtype=int) # NetType mask, shape (num_layers,), 0=GND, 1=PWR
-        self.die_t: np.ndarray = np.asarray(die_t, dtype=float)             # dielectric thicknesses, shape (num_layers-1,), in [m]
-        self.er_list: np.ndarray = np.asarray(er_list, dtype=float)         # relative permittivities, shape (num_layers-1,)
-        self.d_r: np.ndarray = np.asarray(d_r, dtype=float)                 # conductor thicknesses, shape (num_layers,), in [m]
+    def __post_init__(self) -> None:
+        # Normalize to numpy arrays with exact dtypes
+        mask = np.asarray(self.stackup_mask, dtype=np.int_)
+        die_t = np.asarray(self.die_t, dtype=np.float64)
+        er    = np.asarray(self.er_list, dtype=np.float64)
+        d_r   = np.asarray(self.d_r, dtype=np.float64)
 
         # --- Validation ---
-        if len(self.stackup_mask) != num_layers:
-            raise ValueError(f"stackup_mask length {len(self.stackup_mask)} "
-                             f"must equal num_layers {num_layers}")
-        if len(self.d_r) != num_layers:
-            raise ValueError(f"d_r length {len(self.d_r)} must equal num_layers {num_layers}")
-        if len(self.die_t) != len(self.er_list):
-            raise ValueError(f"die_t length {len(self.die_t)} must equal er_list length {len(self.er_list)}")
-        if len(self.die_t) != num_layers - 1:
-            raise ValueError(f"die_t length {len(self.die_t)} must equal num_layers - 1 ({num_layers-1})")
+        nl = int(self.num_layers)
 
-    def __repr__(self):
-        return (f"Stackup(num_layers={self.num_layers}, "
-                f"mask={self.stackup_mask}, "
-                f"die_t={self.die_t}, "
-                f"er_list={self.er_list}, "
-                f"d_r={self.d_r})")
+        if mask.shape != (nl,):
+            raise ValueError(f"stackup_mask shape {mask.shape} must be ({nl},)")
+        if d_r.shape != (nl,):
+            raise ValueError(f"d_r shape {d_r.shape} must be ({nl},)")
+        if die_t.shape != (nl - 1,):
+            raise ValueError(f"die_t shape {die_t.shape} must be ({nl-1},)")
+        if er.shape != (nl - 1,):
+            raise ValueError(f"er_list shape {er.shape} must be ({nl-1},)")
 
-    def summary(self):
-        """Print debug info about the stackup."""
+        # Optional: ensure mask only contains valid NetType values
+        if not np.isin(mask, (NetType.GND.value, NetType.PWR.value)).all():
+            raise ValueError("stackup_mask must contain only NetType values (0=GND, 1=PWR).")
+
+        # Because the dataclass is frozen, set normalized arrays via object.__setattr__
+        object.__setattr__(self, "stackup_mask", mask)
+        object.__setattr__(self, "die_t", die_t)
+        object.__setattr__(self, "er_list", er)
+        object.__setattr__(self, "d_r", d_r)
+
+    def __repr__(self) -> str:
+        return (
+            f"Stackup(num_layers={self.num_layers}, "
+            f"mask={self.stackup_mask}, "
+            f"die_t={self.die_t}, "
+            f"er_list={self.er_list}, "
+            f"d_r={self.d_r})"
+        )
+
+    # -------- Convenience properties --------
+    @property
+    def num_dielectrics(self) -> int:
+        return self.num_layers - 1
+
+    # -------- Debug helpers --------
+    def summary(self) -> None:
         print("=== Stackup Summary ===")
         print(f"Layers: {self.num_layers}")
         print(f"Stackup mask: {self.stackup_mask}")
-        print(f"Dielectric layers: {len(self.die_t)} → {self.die_t}")
+        print(f"Dielectric layers: {self.num_dielectrics} → {self.die_t}")
         print(f"εr values: {self.er_list}")
         print(f"Conductor thicknesses: {self.d_r}")
         print("=======================")

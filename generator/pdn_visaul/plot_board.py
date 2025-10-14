@@ -1,17 +1,16 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Union, List
+from typing import Union, List, Iterable, Optional
 from generator.pdn_stackup import Stackup
-from generator.pdn_via import Via, ViaCollection
+from generator.pdn_via.pdn_via_model import Via, ViaCollection
 import math
 
+from matplotlib.patches import Rectangle as MplRect
+import itertools
 
-import numpy as np
-import matplotlib.pyplot as plt
-from typing import Union, List
-from generator.pdn_stackup import Stackup
-from generator.pdn_via import Via, ViaCollection
-import math
+from generator.pdn_enums import PortSide
+from generator.pdn_port.pdn_port_model import PortCollection, Port
+from generator.pdn_via.pdn_via_model import ViaCollection
 
 
 def plot_board_outline(
@@ -117,10 +116,10 @@ def plot_vias_on_layer(
                        label=f"{v.via_type.name} via (start=end)")
         elif v.start_layer == layer:
             ax.scatter(x_mm, y_mm, marker=marker_start, c=color, s=60,
-                       label=f"{v.via_type.name} via start")
+                       label=f"{v.via_type.name} via top")
         elif v.stop_layer == layer:
             ax.scatter(x_mm, y_mm, marker=marker_end, c=color, s=60,
-                       label=f"{v.via_type.name} via end")
+                       label=f"{v.via_type.name} via bottom")
         elif v.start_layer < layer < v.stop_layer:
             ax.scatter(x_mm, y_mm, marker=marker_thru, edgecolors=color,
                        facecolors="none", s=40,
@@ -133,18 +132,139 @@ def plot_vias_on_layer(
 
     return ax
 
+def plot_ports_on_layer(
+    bxy: np.ndarray,
+    vias: ViaCollection,
+    ports: Union[PortCollection, Iterable[Port]],
+    *,
+    stackup_mask: np.ndarray,
+    layer: int | None = None,
+    side: PortSide | None = None,
+    ax: plt.Axes | None = None,
+    # port overlay style knobs (these DO NOT get forwarded to base plotters)
+    rect_w_mm: float = 2.6,
+    rect_h_mm: float = 2.6,
+    rect_lw: float = 1.8,
+    port_legend_loc: str = "upper left",
+    show_ids: bool = False,  # accepted to avoid leaking to matplotlib
+    **kwargs,
+) -> plt.Axes:
+    """
+    Overlay small rectangles centered on terminal vias of ports.
+      • Color encodes the PORT
+      • Edge style encodes terminal: solid = (+), dashed = (−)
+    Adds a dedicated "Ports" legend without removing the via legend.
+    Provide either 'layer' OR 'side'.
+    """
+    if layer is None and side is None:
+        raise ValueError("Provide either 'layer' or 'side'.")
 
-def plot_layers(
+    top_idx, bot_idx = 0, len(stackup_mask) - 1
+    if side is not None:
+        layer = top_idx if side == PortSide.TOP else bot_idx
+    else:
+        if layer not in (top_idx, bot_idx):
+            raise ValueError(f"Layer must be top ({top_idx}) or bottom ({bot_idx}) when plotting ports.")
+        side = PortSide.TOP if layer == top_idx else PortSide.BOTTOM
+
+    # ---- Strip port-only kwargs so they don't leak to plt.plot() ----
+    _block_keys = {"rect_w_mm", "rect_h_mm", "rect_lw", "port_legend_loc", "show_ids"}
+    base_kwargs = {k: v for k, v in kwargs.items() if k not in _block_keys}
+
+    # Base layer (keeps via legend)
+    ax = plot_vias_on_layer(bxy, vias, layer=layer, stackup_mask=stackup_mask, ax=ax, **base_kwargs)
+
+    # Capture the existing VIA legend so we can keep it alongside the ports legend
+    via_legend = ax.get_legend()
+
+    # Normalize ports iterable
+    port_list: List[Port] = list(ports) if not isinstance(ports, PortCollection) else list(ports)
+
+    # Per-port color from mpl cycle
+    color_cycle = itertools.cycle(plt.rcParams["axes.prop_cycle"].by_key()["color"])
+    port_color: dict[str, str] = {}
+    for p in port_list:
+        if p.side == side and p.name not in port_color:
+            port_color[p.name] = next(color_cycle)
+
+    # Helper for mm coordinates
+    def _xy_mm(vid: int) -> tuple[float, float]:
+        v = vias.get_by_id(vid)
+        return v.xy[0] * 1e3, v.xy[1] * 1e3
+
+    # Draw rectangles (outline only so they don't cover via markers)
+    for p in port_list:
+        if p.side != side:
+            continue
+        col = port_color[p.name]
+
+        # (+) solid outline rectangles
+        for vid in p.positive.via_ids:
+            x_mm, y_mm = _xy_mm(vid)
+            ax.add_patch(
+                MplRect(
+                    (x_mm - rect_w_mm/2, y_mm - rect_h_mm/2),
+                    rect_w_mm, rect_h_mm,
+                    facecolor="none",
+                    edgecolor=col,
+                    linewidth=rect_lw,
+                    linestyle="-",     # solid for (+)
+                    zorder=18,
+                )
+            )
+
+        # (−) dashed outline rectangles
+        for vid in p.negative.via_ids:
+            x_mm, y_mm = _xy_mm(vid)
+            ax.add_patch(
+                MplRect(
+                    (x_mm - rect_w_mm/2, y_mm - rect_h_mm/2),
+                    rect_w_mm, rect_h_mm,
+                    facecolor="none",
+                    edgecolor=col,
+                    linewidth=rect_lw,
+                    linestyle="--",    # dashed for (−)
+                    zorder=18,
+                )
+            )
+
+    # Dedicated ports legend (separate from via legend)
+    handles, labels = [], []
+    for p in port_list:
+        if p.side != side:
+            continue
+        col = port_color[p.name]
+        # (+) solid outline handle
+        handles.append(MplRect((0, 0), 1, 1, fc="none", ec=col, lw=rect_lw, ls="-"))
+        labels.append(f"{p.role.name}:{p.name} (+)")
+        # (−) dashed outline handle
+        handles.append(MplRect((0, 0), 1, 1, fc="none", ec=col, lw=rect_lw, ls="--"))
+        labels.append(f"{p.role.name}:{p.name} (−)")
+
+    if handles:
+        ports_legend = ax.legend(handles, labels, loc=port_legend_loc, fontsize=8,
+                                 framealpha=0.95, title="Ports")
+        ax.add_artist(ports_legend)  # keep the ports legend
+        if via_legend is not None:
+            ax.add_artist(via_legend)  # restore the via legend
+
+    return ax
+
+def plot_all_layers(
     bxy: np.ndarray,
     vias,
     *,
     stackup_mask: np.ndarray,
     layers: List[int] = None,
+    ports: Optional[Union[PortCollection, Iterable[Port]]] = None,
+    overlay_ports_on_outer: bool = True,
     figsize=(12, 8),
     **kwargs
 ):
     """
-    Plot vias + board outlines for multiple layers in subplots.
+    Plot board outlines + vias for multiple layers in subplots.
+    If 'ports' is provided and overlay_ports_on_outer=True, ports are drawn
+    on the top and bottom layers (0 and N-1) using plot_ports_on_layer.
 
     Parameters
     ----------
@@ -156,10 +276,15 @@ def plot_layers(
         NetType mask per conductor layer (0=GND, 1=PWR).
     layers : list[int], optional
         List of layer indices to plot. If None, plot all layers.
+    ports : PortCollection | Iterable[Port] | None
+        Ports to overlay on outer layers. If None, no ports are plotted.
+    overlay_ports_on_outer : bool, default True
+        If True and 'ports' is provided, overlay ports on top & bottom layers.
     figsize : tuple, default (12, 8)
         Figure size in inches.
     **kwargs : dict
-        Extra style arguments for via markers or outline.
+        Extra style arguments for via markers or outline. These are forwarded
+        to plot_vias_on_layer / plot_ports_on_layer.
     """
     num_layers = len(stackup_mask)
     if layers is None:
@@ -172,11 +297,31 @@ def plot_layers(
     fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
     axes = np.array(axes).reshape(-1)
 
+    top_idx, bot_idx = 0, num_layers - 1
+    show_ports = ports is not None and overlay_ports_on_outer
+
     for i, layer in enumerate(layers):
         ax = axes[i]
-        plot_vias_on_layer(bxy, vias, layer=layer, stackup_mask=stackup_mask, ax=ax, **kwargs)
-        ax.set_title(f"Layer {layer}")
+        # If this is an outer layer and we want ports, let plot_ports_on_layer
+        # render both base and overlays (to avoid double-plotting).
+        if show_ports and layer in (top_idx, bot_idx):
+            plot_ports_on_layer(
+                bxy, vias, ports,
+                stackup_mask=stackup_mask,
+                layer=layer,  # infers side internally
+                ax=ax,
+                **kwargs
+            )
+        else:
+            # Interior layers: just draw vias/outline
+            plot_vias_on_layer(
+                bxy, vias, layer=layer,
+                stackup_mask=stackup_mask,
+                ax=ax,
+                **kwargs
+            )
 
+        ax.set_title(f"Layer {layer}")
         ax.annotate(
             f"L{layer}",
             xy=(0.02, 0.95),
@@ -187,12 +332,12 @@ def plot_layers(
             bbox=dict(boxstyle="round", fc="w", ec="0.5", alpha=0.7),
         )
 
+    # turn off any extra empty axes
     for j in range(i + 1, len(axes)):
         axes[j].axis("off")
 
     plt.tight_layout()
     return fig, axes
-
 
 def plot_stackup(
     stackup: Stackup,

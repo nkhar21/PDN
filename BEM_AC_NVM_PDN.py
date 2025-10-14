@@ -1675,12 +1675,12 @@ class PDN():
                     pass
 
             # 8) Per-via table
-            for i_v in range(len(self.start_layers)):
-                print(f"[VIA {i_v}] type={via_type[i_v]} start={self.start_layers[i_v]} stop={self.stop_layers[i_v]} xy={via_xy[i_v]}")
+            # for i_v in range(len(self.start_layers)):
+            #     print(f"[VIA {i_v}] type={via_type[i_v]} start={self.start_layers[i_v]} stop={self.stop_layers[i_v]} xy={via_xy[i_v]}")
         # ########################## end debug nk ##########################
         # ----------------------------------------------------------------------
 
-        # ---- Choose reference node: ground of first port ----
+        # ---- Choose reference node: ground of first port ----``
         map2old_node = new_old_node_map[:, 1].astype(int).tolist()
         ref_node = int(port_node[0, 1])
 

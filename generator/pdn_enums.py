@@ -12,8 +12,12 @@ class ViaRole(IntEnum):
     BLIND = 1
     THROUGH = 2
 
-
 class PortRole(IntEnum):
     """ Type of port for PDN"""
     IC = 0
     DECAP = 1
+
+class PortSide(IntEnum):
+    """ Side of the board where the port is located """
+    TOP = 0
+    BOTTOM = 1

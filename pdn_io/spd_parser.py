@@ -111,18 +111,26 @@ def parse_spd(
     log("\nIC blocks: ", ic_blocks if ic_blocks else "N/A")
     log("\nDecap blocks: ", decap_blocks if decap_blocks else "N/A")
 
-    # 4) IC/Decap vias in Port order (names + xy + type)
-    _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks, pwr_net=power_net, gnd_net=ground_net)
-    log("\n[SPD] IC vias:", len(getattr(brd, 'ic_node_names', [])),
-        "\nDecap vias:", len(getattr(brd, 'decap_node_names', [])))
-
-    # 5) All via pairs (upper/lower nodes), canonicalized
+    # 4) All via pairs (upper/lower nodes), canonicalized
     via_lines = _extract_via_lines(text, pwr_net=power_net, gnd_net=ground_net)
     log("[SPD] Via lines extracted:\n", len(via_lines), "examples:\n", via_lines[:5])
+
+    # inject dummy plane terminals for IC/decap blocks missing one node
+    via_lines = _inject_dummy_plane_terminals(brd, node_info, ic_blocks, decap_blocks, via_lines, pwr_net=power_net, gnd_net=ground_net)
+
+    # 5) IC/Decap vias in Port order (names + xy + type)
+    _fill_ic_decap_vias(brd, node_info, ic_blocks, decap_blocks, via_lines, pwr_net=power_net, gnd_net=ground_net)
+    log("\n[SPD] IC vias:", len(getattr(brd, 'ic_node_names', [])),
+        "\nDecap vias:", len(getattr(brd, 'decap_node_names', [])))
 
     # 6) Start/stop/type arrays for ALL vias (IC+DECAP order as in Port)
     _extract_start_stop_type(brd, via_lines, node_info, ic_blocks, decap_blocks)
     log("[SPD] Start/stop/type via arrays:\n", brd.start_layers, brd.stop_layers, brd.via_type)
+
+    assert len(brd.start_layers) == len(brd.stop_layers) == len(brd.via_type) == \
+       (len(brd.ic_via_xy) + len(brd.decap_via_xy) + len(getattr(brd,'buried_via_xy',[])) + len(getattr(brd,'blind_via_xy',[]))), \
+       "[SPD] length mismatch after injection"
+
 
     # 7.1) Buried vias
     _fill_buried_vias(brd, via_lines, node_info)
@@ -654,6 +662,7 @@ def _fill_ic_decap_vias(
     node_info: dict,
     ic_blocks: list[str],
     decap_blocks: list[str],
+    via_lines: list[tuple[str, str]],   # <-- NEW: pass in physical via pairs
     pwr_net: str = "pwr",
     gnd_net: str = "gnd",
     snap_dec: int = 7,
@@ -664,7 +673,7 @@ def _fill_ic_decap_vias(
       + PositiveTerminal $Package.Node... [possibly many, over wrapped '+' lines]
       + NegativeTerminal $Package.Node... [possibly many, over wrapped '+' lines]
 
-    Populates:
+    Populates (BUT ONLY for nodes that are endpoints of a real Via… pair):
         brd.ic_node_names,   brd.ic_via_xy,   brd.ic_via_type
         brd.decap_node_names,brd.decap_via_xy,brd.decap_via_type
 
@@ -673,12 +682,18 @@ def _fill_ic_decap_vias(
     Other nets are ignored.
     """
 
-    POS_PAT = re.compile(r"^\+?\s*PositiveTerminal\b", re.IGNORECASE)
-    NEG_PAT = re.compile(r"^\+?\s*NegativeTerminal\b", re.IGNORECASE)
+    POS_PAT  = re.compile(r"^\+?\s*PositiveTerminal\b", re.IGNORECASE)
+    NEG_PAT  = re.compile(r"^\+?\s*NegativeTerminal\b", re.IGNORECASE)
     NODE_PAT = re.compile(r"\$Package\.(Node\d+)", re.IGNORECASE)
 
     pwr_net_l = pwr_net.lower()
     gnd_net_l = gnd_net.lower()
+
+    # --- Build a fast lookup of nodes that actually participate in a physical via
+    via_nodes = set()
+    for a, b in via_lines:
+        via_nodes.add(canon_node(a))
+        via_nodes.add(canon_node(b))
 
     def _collect_from_blocks(blocks: list[str]):
         names_ordered, xy_list, type_list = [], [], []
@@ -706,9 +721,14 @@ def _fill_ic_decap_vias(
 
                 for node_raw in nodes:
                     n = canon_node(node_raw)
+
+                    # Skip if not an endpoint of a real Via… pair (prevents phantom entries)
+                    if n not in via_nodes:
+                        continue
+
                     info = node_info.get(n)
                     if not info:
-                        continue
+                        continue  # defensive: no coordinates/layer known
 
                     net_l = (info.get("net") or "").lower()
                     if net_l == pwr_net_l:
@@ -724,26 +744,26 @@ def _fill_ic_decap_vias(
                     type_list.append(t)
 
         if xy_list:
-            xy_arr = np.round(np.asarray(xy_list, dtype=float), snap_dec)
+            xy_arr   = np.round(np.asarray(xy_list, dtype=float), snap_dec)
             type_arr = np.asarray(type_list, dtype=int)
         else:
-            xy_arr = np.zeros((0, 2), dtype=float)
+            xy_arr   = np.zeros((0, 2), dtype=float)
             type_arr = np.zeros((0,), dtype=int)
 
         return names_ordered, xy_arr, type_arr
 
-    # Parse IC and decap blocks (new .Port format)
-    ic_names, ic_xy, ic_type = _collect_from_blocks(ic_blocks)
+    # Parse IC and decap blocks (new .Port format) with filtering against via_nodes
+    ic_names,    ic_xy,    ic_type    = _collect_from_blocks(ic_blocks)
     decap_names, decap_xy, decap_type = _collect_from_blocks(decap_blocks)
 
     # Assign to board
-    brd.ic_node_names = ic_names
-    brd.ic_via_xy = ic_xy
-    brd.ic_via_type = ic_type
+    brd.ic_node_names    = ic_names
+    brd.ic_via_xy        = ic_xy
+    brd.ic_via_type      = ic_type
 
     brd.decap_node_names = decap_names
-    brd.decap_via_xy = decap_xy
-    brd.decap_via_type = decap_type
+    brd.decap_via_xy     = decap_xy
+    brd.decap_via_type   = decap_type
     return
     
 
@@ -1306,3 +1326,124 @@ def _print_via_table(brd, log=print):
             cat = "Blind"
 
         log(f"[VIA {i:02d}] xy=({x:.9f}, {y:.9f}) start={s} stop={t} type={vt}  <-- {cat}")
+
+
+def _inject_dummy_plane_terminals(
+    brd,
+    node_info: dict,
+    ic_blocks: list[str],
+    decap_blocks: list[str],
+    via_lines: list[tuple[str, str]],
+    pwr_net: str = "pwr",
+    gnd_net: str = "gnd",
+):
+    """
+    For every NegativeTerminal in .Port blocks that doesn't already appear in via_lines,
+    synthesize a via to the nearest plane *of the same net* on a different layer, and
+    append (UpperNode, LowerNode) to via_lines. node_info is updated in-place.
+    """
+
+    POS_PAT  = re.compile(r"^\+?\s*PositiveTerminal\b", re.IGNORECASE)
+    NEG_PAT  = re.compile(r"^\+?\s*NegativeTerminal\b", re.IGNORECASE)
+    NODE_PAT = re.compile(r"\$Package\.(Node\d+)", re.IGNORECASE)
+    pwr_l, gnd_l = pwr_net.lower(), gnd_net.lower()
+
+    # Fast lookup for nodes already participating in any via
+    via_nodes = set()
+    for a, b in via_lines:
+        via_nodes.add(canon_node(a))
+        via_nodes.add(canon_node(b))
+
+    # --- helper: collect NegativeTerminal nodes from Port blocks (IC then decap, preserving order)
+    def _neg_nodes_from_blocks(blocks: list[str]) -> list[str]:
+        out = []
+        for blk in blocks:
+            mode = None
+            for raw in blk.splitlines():
+                ln = raw.rstrip()
+                if POS_PAT.search(ln): mode = "pos"
+                elif NEG_PAT.search(ln): mode = "neg"
+                if mode != "neg": continue
+                out.extend(canon_node(n) for n in NODE_PAT.findall(ln))
+        return out
+
+    neg_nodes = _neg_nodes_from_blocks(ic_blocks) + _neg_nodes_from_blocks(decap_blocks)
+
+    # --- helper: candidate plane layers for a given net, using what we know *now*
+    # Prefer: derive from node_info (layers where we’ve seen that net). This works early.
+    # Later you'll also have brd.stackup, but at this injection point it may not exist yet.
+    def _candidate_layers_for_net(net_l: str) -> list[int]:
+        layers = sorted({info["layer"] for info in node_info.values()
+                         if (info.get("net") or "").lower() == net_l})
+        return layers
+
+    # fallback to overall layer count if needed
+    def _layer_count() -> int:
+        # Try to infer from node_info (robust)
+        if node_info:
+            return max(v.get("layer", 1) for v in node_info.values())
+        # Last resort: guess 2
+        return 2
+
+    # choose nearest *other* plane of the same net; prefer moving "inward" (down from top / up from bottom)
+    def _choose_stop_layer(start_1b: int, net_l: str) -> int:
+        cands = _candidate_layers_for_net(net_l)
+        # remove current layer if present — we need a *different* layer
+        cands = [L for L in cands if L != start_1b]
+        if cands:
+            # prefer nearest by |Δlayer|
+            return min(cands, key=lambda L: abs(L - start_1b))
+        # if none seen yet, fall back to opposite outer layer
+        N = _layer_count()
+        if start_1b <= 1:   return N
+        if start_1b >= N:   return 1
+        # middle layer and no candidates → nearest outer
+        return 1 if (start_1b - 1) <= (N - start_1b) else N
+
+    # Inject
+    syn_seq = 0
+    for n in neg_nodes:
+        if n in via_nodes:
+            continue  # already has a via
+        info = node_info.get(n)
+        if not info:
+            continue  # no metadata → skip safely
+        net_l = (info.get("net") or "").lower()
+        if net_l not in (pwr_l, gnd_l):
+            continue  # only process pwr/gnd negatives
+
+        Ls = int(info["layer"])
+        Lt = int(_choose_stop_layer(Ls, net_l))
+        if Lt == Ls:
+            # final guard: if we somehow picked the same layer, push to far outer
+            N = _layer_count()
+            Lt = N if Ls == 1 else 1
+
+        # create a unique synthetic node on Lt at same (x,y)
+        base_num = "".join(re.findall(r"\d+", n)) or "0"
+        syn_name = f"Node{base_num}_SYN"
+        while syn_name in node_info or syn_name in via_nodes:
+            syn_seq += 1
+            syn_name = f"Node{base_num}_SYN{syn_seq}"
+
+        node_info[syn_name] = {
+            "type": 1 if net_l == pwr_l else 0,
+            "net":  pwr_net if net_l == pwr_l else gnd_net,
+            "x":    info["x"],
+            "y":    info["y"],
+            "layer": Lt,  # 1-based
+        }
+
+        # Order as (UpperNode, LowerNode) by physical layer index
+        if Ls <= Lt:
+            upper, lower = n, syn_name
+        else:
+            upper, lower = syn_name, n
+
+        via_lines.append((upper, lower))
+        via_nodes.add(n)
+        via_nodes.add(syn_name)
+        # You can uncomment for debugging:
+        # log(f"[SPD] Injected dummy via: ({upper}@L{node_info[upper]['layer']})->({lower}@L{node_info[lower]['layer']}) net={net_l}")
+
+    return via_lines

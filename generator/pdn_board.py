@@ -1,15 +1,29 @@
+from __future__ import annotations
+
+from typing import Any, Optional, Tuple, Sequence, Literal
 import numpy as np
-from typing import Optional
-from matplotlib.path import Path 
+from numpy.typing import NDArray
+
+from matplotlib.path import Path
+
+from generator.pdn_enums import NetType, PortRole, ViaRole, PortSide
 
 from generator.pdn_board_outline import BoardOutline
 from generator.pdn_stackup import Stackup
-from generator.plot_board import (
-    plot_board_outline, plot_stackup,
-    plot_vias_on_layer, plot_vias_cross_section, plot_layers
-)
-from generator.pdn_via import Via, ViaCollection, ViaRole
-from generator.pdn_enums import NetType
+
+from generator.pdn_via.pdn_via_model import Via, ViaCollection
+from generator.pdn_via.pdn_via_policy import validate_via_placement, assign_via_role
+
+from generator.pdn_port.pdn_port_model import Port, PortCollection, Terminal
+from generator.pdn_port.pdn_port_policy import validate_terminal_ids
+
+
+
+
+# ----- Type aliases for clarity -----
+Point = Tuple[float, float]               # (x, y)
+Polygon = NDArray[np.float64]             # shape (N, 2), closed or open
+Polygons = list[Polygon]
 
 
 class PDNBoard:
@@ -18,7 +32,7 @@ class PDNBoard:
     Holds outline, stackup, and via attributes.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # --- Outline / Geometry ---
         self.outline: BoardOutline = BoardOutline()
 
@@ -28,96 +42,100 @@ class PDNBoard:
         # --- Vias ---
         self.vias: ViaCollection = ViaCollection()
 
+        # --- Ports ---
+        self.ports: PortCollection = PortCollection()
+
     # --------------------------
     # Delegation helpers
     # --------------------------
-    def set_outline(self, *args, **kwargs):
+    def set_outline(self, *args: Any, **kwargs: Any) -> None:
         """Delegate to BoardOutline.set_outline"""
-        return self.outline.set_outline(*args, **kwargs)
+        self.outline.set_outline(*args, **kwargs)
 
-    def set_segmentation(self, *args, **kwargs):
+    def set_segmentation(self, *args: Any, **kwargs: Any) -> None:
         """Delegate to BoardOutline.set_segmentation"""
-        return self.outline.set_segmentation(*args, **kwargs)
+        self.outline.set_segmentation(*args, **kwargs)
 
-    def set_stackup(self, stackup: Stackup):
+    def set_stackup(self, stackup: Stackup) -> None:
         """Attach a pre-constructed Stackup object."""
         if not isinstance(stackup, Stackup):
             raise TypeError("stackup must be a Stackup object")
         self.stackup = stackup
 
-    def _point_in_polygon(self, point, polygon) -> bool:
+    def _point_in_polygon(self, point: Point | NDArray[np.floating], polygon: Polygon) -> bool:
         """Return True if (x,y) lies inside polygon."""
-        return Path(polygon).contains_point(point)
+        # Normalize point to a 2-tuple[float, float] for Path.contains_point
+        px: float = float(point[0])
+        py: float = float(point[1])
+        return Path(polygon).contains_point((px, py))
 
-    def add_via(self, via: Via):
-        """Add a single via to the board with validity + stackup checks, auto-assign role."""
+    def add_via(self, via: Via) -> int:
+        """
+        Validate, assign role, then add to collection. Returns the via id.
+        """
         if self.stackup is None:
             raise ValueError("Stackup must be defined before adding vias")
 
-        num_layers = self.stackup.num_layers
-        stackup_mask = self.stackup.stackup_mask
+        validate_via_placement(self, via)
+        via.role = assign_via_role(via, self.stackup.num_layers)
 
-        # --- Vertical check ---
-        if via.start_layer < 0 or via.stop_layer >= num_layers:
-            raise ValueError(
-                f"Via layers {via.start_layer}->{via.stop_layer} out of bounds "
-                f"(board has {num_layers} layers)"
-            )
-
-        # --- Horizontal check (geometry containment) ---
-        if self.outline.bxy is None:
-            raise ValueError("Board outline must be set before adding vias")
-
-        if len(self.outline.bxy) == 1:
-            # Collapsed: same polygon applies to all layers
-            poly = self.outline.bxy[0]
-            for layer in (via.start_layer, via.stop_layer):
-                if not self._point_in_polygon(via.xy, poly):
-                    raise ValueError(
-                        f"Via at {via.xy} is outside board outline on layer {layer}"
-                    )
-        else:
-            # Per-layer outlines
-            for layer in (via.start_layer, via.stop_layer):
-                poly = self.outline.bxy[layer]
-                if not self._point_in_polygon(via.xy, poly):
-                    raise ValueError(
-                        f"Via at {via.xy} is outside board outline on layer {layer}"
-                    )
-
-        # --- Stackup mask check ---
-        layer_types = {stackup_mask[via.start_layer], stackup_mask[via.stop_layer]}
-        if via.via_type == NetType.PWR:
-            if NetType.PWR.value not in layer_types:
-                raise ValueError(
-                    f"Power via at {via.xy} must connect to at least one PWR layer "
-                    f"(layers {via.start_layer}->{via.stop_layer})"
-                )
-        elif via.via_type == NetType.GND:
-            if NetType.GND.value not in layer_types:
-                raise ValueError(
-                    f"Ground via at {via.xy} must connect to at least one GND layer "
-                    f"(layers {via.start_layer}->{via.stop_layer})"
-                )
-
-        # --- Auto-assign role ---
-        if via.start_layer == 0 and via.stop_layer == num_layers - 1:
-            via.role = ViaRole.THROUGH
-        elif via.start_layer == 0 or via.stop_layer == num_layers - 1:
-            via.role = ViaRole.BLIND
-        else:
-            via.role = ViaRole.BURIED
-
-        # Add via to collection
-        self.vias.add_via(via)
+        vid = self.vias.add_via(via)
         if via.role == ViaRole.UNSET:
             raise RuntimeError(f"Via {via.xy} could not be assigned a role")
+        return vid
+
+    def add_port_by_ids(
+        self,
+        name: str,
+        role: PortRole,
+        side: PortSide,
+        pos_via_ids: Sequence[int],
+        neg_via_ids: Sequence[int],
+    ) -> Port:
+        if self.stackup is None:
+            raise ValueError("Stackup must be defined before port checks")
+
+        validate_terminal_ids(self, pos_via_ids, NetType.PWR, side)
+        validate_terminal_ids(self, neg_via_ids, NetType.GND, side)
+
+        port = Port(
+            name=name,
+            role=role,
+            side=side,
+            positive=Terminal(list(pos_via_ids)),
+            negative=Terminal(list(neg_via_ids)),
+        )
+        self.ports.add(port)
+        return port
+
+    def export_port_map(
+        self,
+        by: Literal["index", "id"] = "index",
+    ) -> dict[str, dict[str, NDArray[np.int_]]]:
+        """
+        Build a mapping for solver wiring.
+        Key: "{ROLE}:{NAME}" → {"positive": array([...]), "negative": array([...])}
+
+        - by="index": returns via indices (good for matrix ops)
+        - by="id":    returns via IDs (traceable in logs)
+        """
+        port_map: dict[str, dict[str, NDArray[np.int_]]] = {}
+        for p in self.ports:  # PortCollection is iterable
+            key = f"{p.role.name}:{p.name}"
+            if by == "index":
+                pos = self.vias.ids_to_indices(p.positive.via_ids)
+                neg = self.vias.ids_to_indices(p.negative.via_ids)
+            else:
+                pos = np.asarray(p.positive.via_ids, dtype=np.int_)
+                neg = np.asarray(p.negative.via_ids, dtype=np.int_)
+            port_map[key] = {"positive": pos, "negative": neg}
+        return port_map
 
 
     # --------------------------
     # Debug helpers
     # --------------------------
-    def summary(self):
+    def summary(self) -> None:
         """Print a quick summary of the board."""
         print("=== PDNBoard Summary ===")
 
@@ -136,9 +154,17 @@ class PDNBoard:
         print("========================")
 
         # Vias
-        if self.vias and len(self.vias.vias) > 0:
+        if len(self.vias.vias) > 0:
             self.vias.summary()
         else:
             print("No vias defined.")
+
+        print("========================")
+
+        # Ports
+        if len(self.ports) > 0:
+            self.ports.summary()
+        else:
+            print("No ports defined.")
 
         print("========================")
