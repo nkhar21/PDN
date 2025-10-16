@@ -168,8 +168,8 @@ def parse_spd(
     _normalize_via_coords(brd, snap_dec=7)
     _normalize_via_types(brd, dtype=np.int32)
 
-    pre_u, post_u = _dedupe_and_count(brd, eps=1e-7, rdec=9)
-    log(f"[SPD] Dedupe adjusted {post_u - pre_u} duplicate(s) (eps=1e-7 m)")
+    #pre_u, post_u = _dedupe_and_count(brd, eps=1e-7, rdec=9) # moved into BEM L calc
+    #log(f"[SPD] Dedupe adjusted {post_u - pre_u} duplicate(s) (eps=1e-7 m)")
 
     # 10) Infer stackup mask (0=GND-return layer, 1=PWR layer)
     brd.stackup = _infer_stackup_mask(text, node_info=node_info)
@@ -1325,7 +1325,7 @@ def _print_via_table(brd, log=print):
         else:
             cat = "Blind"
 
-        log(f"[VIA {i:02d}] xy=({x:.9f}, {y:.9f}) start={s} stop={t} type={vt}  <-- {cat}")
+        log(f"[VIA {i:02d}] xy=({x:.7f}, {y:.7f}) start={s} stop={t} type={vt}  <-- {cat}")
 
 
 def _inject_dummy_plane_terminals(

@@ -1229,47 +1229,49 @@ class PDN():
     def __init__(self):
         self.ic_node_names = np.array([])  # names of IC nodes (nk)
         self.decap_node_names = np.array([])  # names of decap nodes (nk)
-        self.top_port_num = np.array([])  # ports on the top layer (nk)
-        self.bot_port_num = np.array([])  # on the bottom layer (nk)
+        self.top_port_num = np.array([])  # ports on the top layer (nk) ### here
+        self.bot_port_num = np.array([])  # on the bottom layer (nk) ### here
 
-        self.stackup = np.array([]) # stackup mask, 1 for pwr, 0 for gnd, 2 for floating layer
-        self.die_t = np.array([]) # dielectric layer thickness (m)
-        self.er_list = [] # dielectric constant for each layer
-        self.d_r = np.array([])  # signal layer thickness (m)
-        self.brd = np.array([])
+        self.stackup = np.array([]) # stackup mask, 1 for pwr, 0 for gnd, 2 for floating layer ### parser
+        self.die_t = np.array([]) # dielectric layer thickness (m) ### parser
+        self.er_list = [] # dielectric constant for each layer  ### parser
+        self.d_r = np.array([])  # signal layer thickness (m) ### parser
+        self.brd = np.array([]) ### no clue
 
-        self.seg_len = np.array([])  # segment length of the boundary
+        self.seg_len = np.array([])  # segment length of the boundary  !!! ### main
 
-        self.outer_bd_node = np.array([])  # N1*2 matrix, rotate counter-clockwise !!!
+        self.outer_bd_node = np.array([])  # N1*2 matrix, rotate counter-clockwise !!! 
         self.inner_bd_node = np.array([])  # N2*2 matrix, rotate clockwise !!!
         self.outer_sxy = np.array([])  # S1*4 matrix, rotate counter-clockwise !!!
         self.inner_sxy = np.array([])  # S2*4 matrix, rotate clockwise !!!
-        self.sxy = np.array([])  # S*4 matrix
-        self.area = np.array([])  # plane area
+        self.sxy = np.array([])  # S*4 matrix ### main
+        self.sxy_list = []  # list of sxy for each layer ### main
+        self.sxy_index_ranges = []  # helper for calculating sxy_list. list of index ranges for each layer ### main
+        self.area = np.array([])  # plane area ### here
 
-        self.bxy = np.array([])
+        self.bxy = np.array([]) ### parser
 
         self.via_r = 0.2e-3
 
-        self.ic_via_xy = np.array([])  # original x,y locations of vias, 2-column matrix
-        self.ic_via_type = np.array([])  # original type of vias. 1 for pwr, 0 for gnd
-        self.ic_via_loc = np.array([])  # locations for corresponding IC pins, 1 for top layer, 0 for bottom layer
+        self.ic_via_xy = np.array([])  # original x,y locations of vias, 2-column matrix ### parser
+        self.ic_via_type = np.array([])  # original type of vias. 1 for pwr, 0 for gnd ### parser
+        self.ic_via_loc = np.array([])  # locations for corresponding IC pins, 1 for top layer, 0 for bottom layer ### parser
 
-        self.buried_via_xy = np.array([])  # original x,y locations of buried vias, 2-column matrix
-        self.buried_via_type = np.array([])  # original type of vias. 1 for pwr, 0 for gnd
-        self.blind_via_xy = np.array([])  # original x,y locations of blind vias that are not ic's or decap's, 2-column matrix
-        self.blind_via_type = np.array([])  # original type of vias. 1 for pwr, 0 for gnd
+        self.buried_via_xy = np.array([])  # original x,y locations of buried vias, 2-column matrix  ### parser
+        self.buried_via_type = np.array([])  # original type of vias. 1 for pwr, 0 for gnd ### parser
+        self.blind_via_xy = np.array([])  # original x,y locations of blind vias that are not ic's or decap's, 2-column matrix ### parser
+        self.blind_via_type = np.array([])  # original type of vias. 1 for pwr, 0 for gnd ### parser
 
-        self.decap_via_xy = np.array([])  # x,y locations for decap vias, 2-column matrix
-        self.decap_via_type = np.array([])  # type of decap vias, 1 for pwr, 0 for gnd
-        self.decap_via_loc = np.array([])  # locations for corresponding decaps, 1 for top layer, 0 for bottom layer
+        self.decap_via_xy = np.array([])  # x,y locations for decap vias, 2-column matrix ### parser
+        self.decap_via_type = np.array([])  # type of decap vias, 1 for pwr, 0 for gnd ### parser
+        self.decap_via_loc = np.array([])  # locations for corresponding decaps, 1 for top layer, 0 for bottom layer ### parser
 
-        self.via_xy = np.array([])  # x,y locations of all vias
-        self.via_type = np.array([])  # type of all vias. 1 for pwr, 0 for gnd
-        self.via_loc = np.array([])  # location of all vias. 1 for top, 0 for bot
+        self.via_xy = np.array([])  # x,y locations of all vias ### parser
+        self.via_type = np.array([])  # type of all vias. 1 for pwr, 0 for gnd ### parser
+        self.via_loc = np.array([])  # location of all vias. 1 for top, 0 for bot ### parser
 
-        self.start_layers = np.array([])  # start layers of the segments
-        self.stop_layers = np.array([])  # stop layers of the segments
+        self.start_layers = np.array([])  # start layers of the vias ### parser
+        self.stop_layers = np.array([])  # stop layers of the vias ### parser
 
         self.decap = []  # matrix of 6 columns: xp, yp, xg, yg, model_num, top_bot ('top' or 'bot')
 
