@@ -8,7 +8,8 @@ from matplotlib.path import Path
 
 from generator.pdn_enums import NetType, PortRole, ViaRole, PortSide
 
-from generator.pdn_board_outline import BoardOutline
+
+from generator.pdn_outline import BoardOutline
 from generator.pdn_stackup import Stackup
 
 from generator.pdn_via.pdn_via_model import Via, ViaCollection

@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
-from generator.gen_outline import OutlineMode
+from generator.pdn_outline.gen_outline import OutlineMode
 from generator.pdn_board import PDNBoard
 from generator.pdn_via.pdn_via_model import Via
 from generator.pdn_enums import NetType, PortRole, PortSide
