@@ -92,7 +92,6 @@ def seg_bd_node(bxy_b, dl):
     return sxy
 
 
-
 def segment_port(x0, y0, r, n):
     """
     Discretize a circular via rim (port) into **n straight segments** in **clockwise (CW)** order.
@@ -475,7 +474,8 @@ def org_resistance(
                 break
 
 
-    # === Add horizontal branches (in-plane spreading connections) =============
+    # ========== Add horizontal branches (in-plane spreading connections) =============
+    
     # Build a quick lookup: node_id -> via index that created it.
     # (Used to tag each horizontal branch with the corresponding via endpoints.)
     node_to_via_idx = {node: via_idx for (lay, node, vtype, via_idx) in vertical_nodes}
@@ -679,11 +679,11 @@ def org_resistance(
         branch_n += 1
         connected_nodes.add(gnd_node)
 
-    # Done: all necessary top-layer PWR/GND stitching added; return complete branch list.
+    # Done: all necessary top-layer PWR/GND stitching added; return branch list.
     return branch
 
 
-def main_res(brd):
+def main_res(brd, verbose=False):
     """
     Compute DC impedance using the Contour Integral Method (CIM)
     and the Node Voltage Method (NVM).
@@ -748,6 +748,15 @@ def main_res(brd):
     for i in range(branch_num):
         A[int(branch[i, 1]), i] =  1                 # from-node
         A[int(branch[i, 2]), i] = -1                 # to-node
+    
+    if verbose:
+        print(f"[CIM_DC_RES] Constructed A matrix with shape {A.shape}")
+        print(f"[CIM_DC_RES] Branch count: {branch_num}, Node count: {node_num}")
+        print(f"[CIM_DC_RES] Vertical branch count: {branch_verti.shape[0]}")
+        print("reduced incidence matrix (N+1)xB. (hub node included)")
+        print(A)
+
+
 
     # --- Initialize branch impedance matrix (Z_b) ------------------------------
     # Vertical via DC resistance uses R = (rho * L) / (pi r^2) = L / (sigma * pi * r^2).
@@ -863,14 +872,95 @@ def main_res(brd):
             branch_idx = int(branches_i[j, 0])
             zb[branch_idx, branch_idx] = abs(rb[idx1, idx2])  # guard tiny negatives
 
+    if verbose:
+        print(f"[CIM_DC_RES] Completed branch impedance matrix Z_b with shape {zb.shape}")
+        print("branch impedance matrix Z_b (formatted, full matrix):")
+        np.set_printoptions(precision=3, suppress=False)
+        print("zb:\n", zb)
 
-    # --- Solve circuit using Node Voltage Method ---
+    print_branch_legend(branch, zb, node_num, branch_num, verbose)
+
+
+    # --- Solve circuit using Node Voltage Method (NVM) -------------------------
+    # Build nodal admittance: Y_n = A · Y_b · A^T, where Y_b = Z_b^{-1}.
     at = np.transpose(A)
-    yb = np.linalg.inv(zb)
+    yb = np.linalg.inv(zb)        # branch admittances (Z_b is diagonal → cheap & stable)
     yn = np.matmul(A, yb)
-    yn1 = np.matmul(yn, at)
-    yn2 = np.delete(yn1, node_num, 0)
-    yn3 = np.delete(yn2, node_num, 1)
+    yn1 = np.matmul(yn, at)       # full nodal admittance (includes reference node)
+
+    # Choose a reference node and form the reduced nodal system.
+    # Here we use the **highest-index node** (node_num) as the reference by
+    # deleting its row/column. This removes the DC gauge (singularity).
+    yn2 = np.delete(yn1, node_num, 0)  # drop reference-node row
+    yn3 = np.delete(yn2, node_num, 1)  # drop reference-node column
+
+    # Invert reduced admittance to get the reduced nodal impedance matrix.
     zn2 = np.linalg.inv(yn3)
 
+    # Return driving-point resistance seen at node 0 w.r.t. the chosen reference.
+    # (Assumes node 0 is the IC PWR node after branch/node construction.)
+    
     return zn2[0, 0]
+
+
+def print_branch_legend(branch, zb, node_num, branch_num, verbose):
+    # --- Branch legend (column order == A columns) ----------------------------
+    if verbose:
+        print("\n[CIM_DC_RES] Branch legend (column order == A columns)")
+        hub_id = node_num  # the extra row (index == node_num) is the hub
+
+        def _branch_kind(row):
+            typ = int(row[5])           # 1=PWR, 0=GND, -1=special
+            s   = int(row[7]); t = int(row[8])
+            i   = int(row[1]); j = int(row[2])
+            if (j == hub_id) or (i == hub_id):
+                return "HUB-TIE"
+            if typ in (0, 1) and s != t:
+                return "VIA"
+            if typ in (0, 1) and s == t:
+                return "PLANE"
+            return "SPECIAL"
+
+        def _net_name(typ):
+            return "PWR" if typ == 1 else ("GND" if typ == 0 else "SPECIAL")
+
+        def _fmt_via(vi, vj):
+            return f"({vi},{vj})" if (vi >= 0 and vj >= 0) else "--"
+
+        # Header row (Layer removed)
+        header = (
+            f"{'Branch':<8} {'Kind':<8} {'Nodes':<9} "
+            f"{'Via':<9} {'Net':<8} {'Layer span':<11} {'Z (Ω)':>12}"
+        )
+        print(header)
+        print("-" * len(header))
+
+        kind_counts = {"VIA": 0, "PLANE": 0, "SPECIAL": 0, "HUB-TIE": 0}
+
+        # Iterate strictly in A-column order.
+        for k in range(branch_num):
+            idx = int(np.where(branch[:, 0] == k)[0][0])  # row with branch_id == k
+            row = branch[idx]
+
+            b_id = int(row[0])
+            i    = int(row[1]); j = int(row[2])
+            vi   = int(row[3]); vj = int(row[4])
+            typ  = int(row[5])
+            s    = int(row[7]); t   = int(row[8])
+
+            kind = _branch_kind(row)
+            kind_counts[kind] = kind_counts.get(kind, 0) + 1
+            net  = _net_name(typ)
+            Zii  = float(zb[b_id, b_id]) if b_id < zb.shape[0] else float('nan')
+
+            # One row (Layer removed)
+            print(f"{('b'+str(b_id+1).zfill(2)):<8} {kind:<8} "
+                  f"{('n'+str(i+1)+'→'+'n'+str(j+1)):<9} "
+                  f"{_fmt_via(vi,vj):<9} {net:<8} "
+                  f"{(str(s)+'→'+str(t)):<11} {Zii:12.6e}")
+
+        print(f"[CIM_DC_RES] Branch kind counts: "
+              f"VIA={kind_counts.get('VIA',0)}, "
+              f"PLANE={kind_counts.get('PLANE',0)}, "
+              f"SPECIAL={kind_counts.get('SPECIAL',0)}, "
+              f"HUB-TIE={kind_counts.get('HUB-TIE',0)}")

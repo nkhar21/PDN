@@ -1,130 +1,98 @@
+from __future__ import annotations
+
+from typing import Iterable, Literal
 import numpy as np
-from abc import ABC, abstractmethod
-from typing import List, Literal
-from enum import Enum
+from numpy.typing import NDArray
+
+Polygon = NDArray[np.float64]   # (N, 2)
+BxyArray = np.ndarray           # dtype=object, each item is a Polygon
 
 
-class OutlineMode(Enum):
-    COLLAPSED = "collapsed"
-    NONCOLLAPSED = "noncollapsed"
-
-
-class OutlineGenerator(ABC):
+def _to_meters_and_close(
+    poly: np.ndarray,
+    *,
+    units: Literal["mm", "m"] = "mm",
+    auto_close: bool = True,
+    tol: float = 1e-9,
+) -> Polygon:
     """
-    Abstract interface for generating board outlines (bxy).
+    Normalize one polygon:
+      - cast to float64
+      - convert units to meters
+      - optionally close the polygon (append first point to the end if needed)
     """
+    if not isinstance(poly, np.ndarray):
+        raise TypeError("Each shape must be a numpy.ndarray")
 
-    def __init__(self, mode: OutlineMode):
-        self.mode = mode
+    a = np.asarray(poly, dtype=np.float64)
+    if a.ndim != 2 or a.shape[1] != 2:
+        raise ValueError(f"Polygon must be (N,2); got shape {a.shape}")
 
-    @abstractmethod
-    def generate(self, shapes: List[np.ndarray]) -> np.ndarray:
-        """
-        Args:
-            shapes: list of polygons; each polygon is an (N,2) ndarray of xy points.
-                    Units may be mm or m depending on implementation.
-        Returns:
-            np.ndarray[dtype=object]: outer shape (num_layers,), each entry is (N,2) array in meters.
-        """
-        raise NotImplementedError
+    scale = 1e-3 if units == "mm" else 1.0
+    a = a * scale
 
-
-class CollapsedOutlineGenerator(OutlineGenerator):
-    """
-    Collapse multiple identical outlines into a single polygon.
-    Always returns np.ndarray[dtype=object] with one polygon per entry.
-    """
-
-    def __init__(
-        self,
-        *,
-        tol: float = 1e-9,
-        units: Literal["mm", "m"] = "mm",
-        auto_close: bool = True,
-    ):
-        super().__init__(OutlineMode.COLLAPSED)
-        self.tol = tol
-        self.scale = 1e-3 if units == "mm" else 1.0
-        self.auto_close = auto_close
-
-    def _to_meters_and_close(self, s: np.ndarray) -> np.ndarray:
-        if not isinstance(s, np.ndarray):
-            raise TypeError("Each shape must be a numpy.ndarray")
-        a = s.astype(float) * self.scale
-        if self.auto_close and a.shape[0] >= 2 and not np.allclose(a[0], a[-1], atol=self.tol):
+    if auto_close and a.shape[0] >= 2:
+        if not np.allclose(a[0], a[-1], atol=tol, rtol=0.0):
             a = np.vstack([a, a[0]])
-        return a
 
-    def generate(self, shapes: List[np.ndarray]) -> np.ndarray:
-        if not shapes:
-            return np.array([], dtype=object)
-
-        shapes_m = [self._to_meters_and_close(s) for s in shapes]
-        first = shapes_m[0]
-
-        all_same = all(
-            (s.shape == first.shape) and np.allclose(s, first, atol=self.tol)
-            for s in shapes_m
-        )
-
-        if all_same:
-            out = np.empty(1, dtype=object)
-            out[0] = first
-            return out
-        else:
-            out = np.empty(len(shapes_m), dtype=object)
-            for i, s in enumerate(shapes_m):
-                out[i] = s
-            return out
+    return a
 
 
-class NonCollapsedOutlineGenerator(OutlineGenerator):
+def generate_bxy(
+    shapes: Iterable[np.ndarray],
+    *,
+    units: Literal["mm", "m"] = "mm",
+    auto_close: bool = True,
+    tol: float = 1e-7,
+) -> BxyArray:
     """
-    Keep all outlines exactly as provided (after conversion and optional closing).
-    Always returns np.ndarray[dtype=object] with one polygon per layer.
+    Build the outline array bxy with one polygon **per layer**.
+
+    Parameters
+    ----------
+    shapes : iterable of (N,2) ndarrays
+        One polygon per layer. Provide them in layer order (0..N-1).
+    units : "mm" | "m", default "mm"
+        Units of input coordinates.
+    auto_close : bool, default True
+        If True, ensure each polygon is closed (first point repeated at end).
+    tol : float, default 1e-9
+        Tolerance used to decide if the polygon is already closed.
+
+    Returns
+    -------
+    bxy : np.ndarray[dtype=object]
+        Object array of polygons in meters: shape (num_layers,), each entry (Mi,2).
+
+    Notes
+    -----
+    This replaces the previous “collapsed/noncollapsed” generator logic.
     """
+    shapes_list = list(shapes)
+    if len(shapes_list) == 0:
+        raise ValueError("At least one outline polygon must be provided (one per layer).")
 
-    def __init__(
-        self,
-        *,
-        units: Literal["mm", "m"] = "mm",
-        auto_close: bool = True,
-        tol: float = 1e-9,
-    ):
-        super().__init__(OutlineMode.NONCOLLAPSED)
-        self.scale = 1e-3 if units == "mm" else 1.0
-        self.auto_close = auto_close
-        self.tol = tol
-
-    def _to_meters_and_close(self, s: np.ndarray) -> np.ndarray:
-        if not isinstance(s, np.ndarray):
-            raise TypeError("Each shape must be a numpy.ndarray")
-        a = s.astype(float) * self.scale
-        if self.auto_close and a.shape[0] >= 2 and not np.allclose(a[0], a[-1], atol=self.tol):
-            a = np.vstack([a, a[0]])
-        return a
-
-    def generate(self, shapes: List[np.ndarray]) -> np.ndarray:
-        if not shapes:
-            return np.array([], dtype=object)
-
-        shapes_m = [self._to_meters_and_close(s) for s in shapes]
-        out = np.empty(len(shapes_m), dtype=object)
-        for i, s in enumerate(shapes_m):
-            out[i] = s
-        return out
+    out = np.empty(len(shapes_list), dtype=object)
+    for i, s in enumerate(shapes_list):
+        out[i] = _to_meters_and_close(s, units=units, auto_close=auto_close, tol=tol)
+    return out
 
 
-class OutlineGeneratorFactory:
+def validate_bxy(bxy: BxyArray) -> None:
     """
-    Factory for creating OutlineGenerator instances.
+    Lightweight validator for bxy produced by generate_bxy.
+    Raises on structural issues; returns None if OK.
     """
+    if not isinstance(bxy, np.ndarray) or bxy.dtype != object:
+        raise TypeError("bxy must be a numpy.ndarray with dtype=object")
 
-    @staticmethod
-    def create(mode: OutlineMode, **kwargs) -> OutlineGenerator:
-        if mode == OutlineMode.COLLAPSED:
-            return CollapsedOutlineGenerator(**kwargs)
-        elif mode == OutlineMode.NONCOLLAPSED:
-            return NonCollapsedOutlineGenerator(**kwargs)
-        else:
-            raise ValueError(f"Unsupported mode: {mode}")
+    if bxy.size == 0:
+        raise ValueError("bxy has no layers")
+
+    for i, poly in enumerate(bxy):
+        if not isinstance(poly, np.ndarray):
+            raise TypeError(f"bxy[{i}] is not an ndarray")
+        if poly.ndim != 2 or poly.shape[1] != 2:
+            raise ValueError(f"bxy[{i}] must be (N,2); got shape {poly.shape}")
+        if poly.shape[0] < 3:
+            raise ValueError(f"bxy[{i}] must have at least 3 points (including closure)")

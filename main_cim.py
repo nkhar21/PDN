@@ -23,7 +23,7 @@ def gen_brd_data(
     brd.d_r = d_r
 
     # --- 3) IC R11 computation ---
-    res_matrix = main_res(brd=brd)
+    res_matrix = main_res(brd=brd, verbose=True)
 
     return res_matrix
 

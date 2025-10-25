@@ -276,7 +276,7 @@ def calc_lpul_bem(via_xy, via_r, sxy, option='v1', n=6):
                     if r_km == 0:
                         print("Warning: zero distance between two vias detected in lpul calculation.")
                         print(f"Via location: ({xm}, {ym})")
-                    r_km = max(r_km, 1e-10) # guard against zero distance (when xy of two vias are identical)
+                    #r_km = max(r_km-, 1e-10) # guard against zero distance (when xy of two vias are identical)
                     G_k[k] = -u * d / pi * (log(r_km / R) - r_km ** 2 / (2 * R ** 2))
                 else:
                     xm = via_xy[m - sxy.shape[0], 0]
@@ -284,7 +284,7 @@ def calc_lpul_bem(via_xy, via_r, sxy, option='v1', n=6):
                     xk = (sxy[k, 0] + sxy[k, 2]) / 2
                     yk = (sxy[k, 1] + sxy[k, 3]) / 2
                     r_km = sqrt((xm - xk) ** 2 + (ym - yk) ** 2)
-                    r_km = max(r_km, 1e-10) # guard against zero distance (when xy of two vias are identical)
+                    #r_km = max(r_km, 1e-10) # guard against zero distance (when xy of two vias are identical)
                     if r_km == 0:
                         print("Warning: zero distance between two vias detected in lpul calculation.")
                         print(f"Via location: ({xm}, {ym})")
@@ -1447,16 +1447,10 @@ class PDN():
             inter = poly1.intersection(poly2)
             return inter.area if not inter.is_empty else 0.0
 
-        if len(self.sxy_list) == 1:
-            # Single-shape: the same cross-section for all cavities
-            common_area = PolyArea(self.sxy_list[0][:, 0], self.sxy_list[0][:, 1])
-            self.area = np.full(len(die_t), common_area)
-        else:
-            # Pairwise overlap of consecutive shapes
-            self.area = [
-                get_overlap_area(self.bxy[i], self.bxy[i + 1])
-                for i in range(len(self.bxy) - 1)
-            ]
+
+        # Pairwise overlap of consecutive shapes
+        self.area = [get_overlap_area(self.bxy[i], self.bxy[i + 1])
+                                    for i in range(len(self.bxy) - 1)]
 
         self.C_pul = np.array([er * e * area for er, area in zip(self.er_list, self.area)])
         C_pul = deepcopy(self.C_pul)
@@ -1515,7 +1509,6 @@ class PDN():
         # ---- Inductance per unit length via BEM ----
         sxy   = np.concatenate(deepcopy(self.sxy_list), axis=0)
         via_r = deepcopy(self.via_r)
-        L_pul = calc_lpul_bem(via_xy, via_r, sxy)
 
         # ---- Merge PDN graph (branches/ports/groups from layer start/stop) ----
         branch, layer_com_node, port_node, port_grp_node_num, branch_merge_list = org_merge_pdn(
@@ -1525,22 +1518,15 @@ class PDN():
 
         # ---- Assemble L for each cavity ----
         L_big = np.zeros((branch.shape[0], branch.shape[0]))
-
-        if len(self.sxy_list) == 1:
-            for c in range(stackup.shape[0] - 1):
-                idx = np.where(branch[:, 3] == c)[0]
-                bi  = branch[idx, 0].astype(int)
-                vi  = branch[idx, 4].astype(int)
-                L_big[np.ix_(bi, bi)] = die_t[c] * L_pul[np.ix_(vi, vi)]
-        else:
-            for c in range(stackup.shape[0] - 1):
-                sxy_c   = self.sxy_list[c]
-                idx_c   = np.where(branch[:, 3] == c)[0]
-                bi      = branch[idx_c, 0].astype(int)
-                vi      = branch[idx_c, 4].astype(int)
-                L_pul_c = calc_lpul_bem(via_xy[vi], via_r, sxy_c)  # only vias in this cavity
-                local   = np.arange(len(vi))
-                L_big[np.ix_(bi, bi)] = die_t[c] * L_pul_c[np.ix_(local, local)]
+        
+        for c in range(stackup.shape[0] - 1):
+            sxy_c   = self.sxy_list[c]
+            idx_c   = np.where(branch[:, 3] == c)[0]
+            bi      = branch[idx_c, 0].astype(int)
+            vi      = branch[idx_c, 4].astype(int)
+            L_pul_c = calc_lpul_bem(via_xy[vi], via_r, sxy_c)  # only vias in this cavity
+            local   = np.arange(len(vi))
+            L_big[np.ix_(bi, bi)] = die_t[c] * L_pul_c[np.ix_(local, local)]
 
         branch_merge_list = []  # (kept, but empty per your code)
 
@@ -1616,8 +1602,6 @@ class PDN():
 
         Yn = np.einsum('rmn,rnk->rmk', np.einsum('rmn,rnk->rmk', A, Yb), np.transpose(A, (0, 2, 1)))
 
-        # ----------------------------------------------------------------------
-        # ########################## debug nk ##########################
         if verbose:
             # 1) Which layers are "anchored"?
             print("[PDN DBG] layer_com_node:", layer_com_node.tolist())
@@ -1685,8 +1669,6 @@ class PDN():
             # 8) Per-via table
             # for i_v in range(len(self.start_layers)):
             #     print(f"[VIA {i_v}] type={via_type[i_v]} start={self.start_layers[i_v]} stop={self.stop_layers[i_v]} xy={via_xy[i_v]}")
-        # ########################## end debug nk ##########################
-        # ----------------------------------------------------------------------
 
         # ---- Choose reference node: ground of first port ----``
         map2old_node = new_old_node_map[:, 1].astype(int).tolist()

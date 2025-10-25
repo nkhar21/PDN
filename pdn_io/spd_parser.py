@@ -168,8 +168,8 @@ def parse_spd(
     _normalize_via_coords(brd, snap_dec=7)
     _normalize_via_types(brd, dtype=np.int32)
 
-    #pre_u, post_u = _dedupe_and_count(brd, eps=1e-7, rdec=9) # moved into BEM L calc
-    #log(f"[SPD] Dedupe adjusted {post_u - pre_u} duplicate(s) (eps=1e-7 m)")
+    # pre_u, post_u = _dedupe_and_count(brd, eps=1e-7, rdec=9) # moved into BEM L calc
+    # log(f"[SPD] Dedupe adjusted {post_u - pre_u} duplicate(s) (eps=1e-7 m)")
 
     # 10) Infer stackup mask (0=GND-return layer, 1=PWR layer)
     brd.stackup = _infer_stackup_mask(text, node_info=node_info)
@@ -343,30 +343,38 @@ def _extract_board_polygons(
             dprint(f"[SPD]  -> box parsed (w,h)=({w},{h}) -> 5 pts")
 
 
-    # --- 4) Collapse identicals (same behavior as before) ---
-    def _collapse(shapes: List[np.ndarray]) -> List[np.ndarray]:
-        if not shapes:
-            return []
-        first = shapes[0]
-        all_same = all((s.shape == first.shape) and np.allclose(s, first, atol=tol) for s in shapes)
-        if all_same:
-            dprint("[SPD]  collapsed")
-            return [first]
-        dprint("[SPD]  shapes returned (not collapsed)")
-        return shapes
+    # # --- 4) Collapse identicals (same behavior as before) ---
+    # def _collapse(shapes: List[np.ndarray]) -> List[np.ndarray]:
+    #     if not shapes:
+    #         return []
+    #     first = shapes[0]
+    #     all_same = all((s.shape == first.shape) and np.allclose(s, first, atol=tol) for s in shapes)
+    #     if all_same:
+    #         dprint("[SPD]  collapsed")
+    #         return [first]
+    #     dprint("[SPD]  shapes returned (not collapsed)")
+    #     return shapes
 
+    # if polygon_shapes:
+    #     out = _collapse(polygon_shapes)
+    #     dprint(f"[SPD] polygons kept: {len(out)} (from {len(polygon_shapes)})")
+    #     return out
+    # if box_shapes:
+    #     out = _collapse(box_shapes)
+    #     dprint(f"[SPD] boxes kept: {len(out)} (from {len(box_shapes)})")
+    #     return out
+
+    # --- 4) Return shapes WITHOUT collapsing (one outline per layer/cavity) ---
     if polygon_shapes:
-        out = _collapse(polygon_shapes)
-        dprint(f"[SPD] polygons kept: {len(out)} (from {len(polygon_shapes)})")
-        return out
+        dprint(f"[SPD] polygons kept: {len(polygon_shapes)} (no collapse)")
+        return polygon_shapes
+
     if box_shapes:
-        out = _collapse(box_shapes)
-        dprint(f"[SPD] boxes kept: {len(out)} (from {len(box_shapes)})")
-        return out
+        dprint(f"[SPD] boxes kept: {len(box_shapes)} (no collapse)")
+        return box_shapes
 
     dprint("[SPD] no polygons/boxes matched filters.")
     return []
-
 
 
 

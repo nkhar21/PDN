@@ -86,10 +86,17 @@ BASE_DIR = Path(__file__).resolve().parent
 # touchstone_path = r"input files\board 8\b8.S2P"
 # R11_PowerSI = open(r"input files\board 8\R.txt").read().strip()
 
-# # Board 9 - buried via fix
-stackup_path = r"input files\board 9\b9_stackup.csv"
-input_path = r"input files\board 9\b9.spd"
-touchstone_path = r"input files\board 9\b9.S2P"
+# Board 8.1 - PowerDC - 4 layer 
+stackup_path = r"input files\board 8.1\b8_1_stackup.csv"
+input_path = r"input files\board 8.1\b8_1.spd"
+touchstone_path = r"input files\board 8.1\b8_1.S2P"
+R11_PowerSI = open(r"input files\board 8.1\R.txt").read().strip()
+
+
+# # # Board 9 - buried via fix
+# stackup_path = r"input files\board 9\b9_stackup.csv"
+# input_path = r"input files\board 9\b9.spd"
+# touchstone_path = r"input files\board 9\b9.S2P"
 
 # # # Board 9_1 - blind fix
 # stackup_path = r"input files\board 9\b9_stackup.csv"

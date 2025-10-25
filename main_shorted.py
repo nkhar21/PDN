@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 import pathlib
 import os
 import skrf as rf
-from copy import deepcopy
 
-from BEM_AC_NVM_PDN import PDN
+# from BEM_AC_NVM_PDN import PDN
+from BEM_NVM import PDN
 from input_AH import input_path, stackup_path, touchstone_path
 
 from pdn_io.spd_parser import parse_spd

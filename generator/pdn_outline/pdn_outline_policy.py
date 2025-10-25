@@ -1,35 +1,39 @@
+# generator/pdn_outline/pdn_outline_policy.py
 from __future__ import annotations
 
 from typing import List, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from generator.pdn_outline.gen_outline import OutlineGeneratorFactory, OutlineMode
+from generator.pdn_outline.gen_outline import generate_bxy, validate_bxy
 from generator.pdn_outline.gen_segments import generate_segments
 from .pdn_outline_model import BoardOutlineModel, BxyArray
 
 
-def set_outline(model: BoardOutlineModel,
-                shapes: List[NDArray[np.float64]],
-                *,
-                mode: OutlineMode,
-                units: Literal["mm", "m"] = "mm") -> None:
+def set_outline(
+    model: BoardOutlineModel,
+    shapes: List[NDArray[np.float64]],
+    *,
+    units: Literal["mm", "m"] = "mm",
+    auto_close: bool = True,
+    tol: float = 1e-9,
+) -> None:
     """
-    Validates and converts incoming shapes to meters, sets model.bxy.
-    Resets any existing segmentation state.
+    Build bxy with exactly one polygon per layer.
+    - Converts to meters
+    - Optionally closes polygons
+    - Resets any existing segmentation state
     """
     if not shapes:
-        raise ValueError("At least one outline polygon must be provided")
+        raise ValueError("At least one outline polygon must be provided (one per layer).")
 
-    gen = OutlineGeneratorFactory.create(mode, units=units)
-    bxy: BxyArray = gen.generate(shapes)
+    bxy: BxyArray = generate_bxy(shapes, units=units, auto_close=auto_close, tol=tol)
+    validate_bxy(bxy)
 
-    if not isinstance(bxy, np.ndarray) or bxy.dtype != object:
-        raise TypeError("Generated bxy must be a numpy.ndarray[dtype=object] of polygons")
-
-    # commit
+    # Commit
     model.bxy = bxy
-    # invalidate segmentation when outline changes
+
+    # Invalidate segmentation whenever outline changes
     model.sxy = None
     model.seg_len = None
     model.sxy_index_ranges = None
@@ -38,8 +42,10 @@ def set_outline(model: BoardOutlineModel,
 
 def set_segmentation(model: BoardOutlineModel, seg_len: float) -> None:
     """
-    Segments model.bxy with a target segment length (meters) and stores
-    concatenated segments + per-polygon slices back into the model.
+    Segment bxy with a target segment length (meters) and store:
+      - concatenated segments (sxy)
+      - per-polygon index ranges (sxy_index_ranges)
+      - per-polygon segment lists (sxy_list)
     """
     if model.bxy is None:
         raise ValueError("bxy must be set before segmentation")

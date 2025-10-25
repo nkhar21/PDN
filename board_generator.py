@@ -5,25 +5,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
-from generator.pdn_outline.gen_outline import OutlineMode
 from generator.pdn_board import PDNBoard
 from generator.pdn_via.pdn_via_model import Via
 from generator.pdn_enums import NetType, PortRole, PortSide
 from generator.pdn_stackup import Stackup
-from generator.pdn_visaul.pdn_plotter import PDNPlotter
+from generator.pdn_visaul.pdn_plotter import PDNPlotter  # (your module path)
 
 if __name__ == "__main__":
     # 1) Board shell
     board = PDNBoard()
 
-    # 2) Outline (mm → meters inside outline code)
-    square = np.array([[0, 0], [50, 0], [50, 50], [0, 50], [0, 0]], dtype=float)
-    board.set_outline([square], mode=OutlineMode.COLLAPSED, units="mm")
-
-    # 3) Segment outline (meters)
-    board.set_segmentation(seg_len=0.001)  # 1 mm
-
-    # 4) Stackup (4 signal layers): 0=GND, 1=PWR, 2=GND, 3=GND
+    # 2) Stackup (4 signal layers): 0=GND, 1=PWR, 2=GND, 3=GND
     stackup_mask = [0, 1, 0, 0]
     die_t        = [0.0005, 0.00043, 0.00047]   # m
     er_list      = [4.0, 3.43, 3.8]
@@ -38,6 +30,14 @@ if __name__ == "__main__":
     )
     board.set_stackup(stackup)
     print(f"Stackup: {stackup}")
+
+    # 3) Outline (mm → meters inside outline code)
+    #    NEW: must provide one polygon per layer (len == stackup.num_layers)
+    square_mm = np.array([[0, 0], [50, 0], [50, 50], [0, 50], [0, 0]], dtype=float)
+    board.set_outline([square_mm] * stackup.num_layers, units="mm")
+
+    # 4) Segment outline (meters)
+    board.set_segmentation(seg_len=0.001)  # 1 mm
 
     # 5) Define vias (meters)
     #   For ports: + must be PWR and touch the chosen outer side; - must be GND and touch that side.
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     # 8) Summaries
     board.summary()
 
-    # 9) Exports (do these BEFORE plotting per your request)
+    # 9) Exports (do these BEFORE plotting)
     print("\nFinal via array for solver (id,x,y,start,stop,type,role):")
     print(board.vias.to_numpy())
 
@@ -107,14 +107,11 @@ if __name__ == "__main__":
 
     for i, ax in enumerate(axes_layers):
         if i == top_idx:
-            # overlay ports on TOP
-            plotter.plot_ports_on_side(PortSide.TOP, ax=ax, show_ids=True)
+            plotter.plot_ports_on_side(PortSide.TOP, ax=ax, show_ids=True)      # overlay ports on TOP
         elif i == bot_idx:
-            # overlay ports on BOTTOM
-            plotter.plot_ports_on_side(PortSide.BOTTOM, ax=ax, show_ids=True)
+            plotter.plot_ports_on_side(PortSide.BOTTOM, ax=ax, show_ids=True)   # overlay ports on BOTTOM
         else:
-            # interior layers: vias only
-            plotter.plot_vias_on_layer(layer=i, ax=ax)
+            plotter.plot_vias_on_layer(layer=i, ax=ax)                           # interior layers: vias only
         ax.set_title(f"Layer {i}")
 
     ax_stackup = fig.add_subplot(gs[:, 2])

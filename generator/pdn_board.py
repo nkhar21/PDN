@@ -4,10 +4,7 @@ from typing import Any, Optional, Tuple, Sequence, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from matplotlib.path import Path
-
 from generator.pdn_enums import NetType, PortRole, ViaRole, PortSide
-
 
 from generator.pdn_outline import BoardOutline
 from generator.pdn_stackup import Stackup
@@ -18,31 +15,25 @@ from generator.pdn_via.pdn_via_policy import validate_via_placement, assign_via_
 from generator.pdn_port.pdn_port_model import Port, PortCollection, Terminal
 from generator.pdn_port.pdn_port_policy import validate_terminal_ids
 
-
-
-
 # ----- Type aliases for clarity -----
 Point = Tuple[float, float]               # (x, y)
-Polygon = NDArray[np.float64]             # shape (N, 2), closed or open
+Polygon = NDArray[np.float64]             # shape (N, 2)
 Polygons = list[Polygon]
 
 
 class PDNBoard:
     """
     High-level PDN board representation.
-    Holds outline, stackup, and via attributes.
+    Holds outline, stackup, vias, and ports.
     """
 
     def __init__(self) -> None:
         # --- Outline / Geometry ---
         self.outline: BoardOutline = BoardOutline()
-
         # --- Stackup ---
         self.stackup: Optional[Stackup] = None
-
         # --- Vias ---
         self.vias: ViaCollection = ViaCollection()
-
         # --- Ports ---
         self.ports: PortCollection = PortCollection()
 
@@ -50,26 +41,34 @@ class PDNBoard:
     # Delegation helpers
     # --------------------------
     def set_outline(self, *args: Any, **kwargs: Any) -> None:
-        """Delegate to BoardOutline.set_outline"""
+        """Delegate to BoardOutline.set_outline and enforce layer-count invariant."""
         self.outline.set_outline(*args, **kwargs)
+        if self.stackup is not None and self.outline.bxy is not None:
+            if len(self.outline.bxy) != self.stackup.num_layers:
+                raise ValueError(
+                    f"Outline must provide one polygon per layer: got "
+                    f"{len(self.outline.bxy)} polygons for stackup with "
+                    f"{self.stackup.num_layers} layers."
+                )
 
     def set_segmentation(self, *args: Any, **kwargs: Any) -> None:
-        """Delegate to BoardOutline.set_segmentation"""
+        """Delegate to BoardOutline.set_segmentation."""
         self.outline.set_segmentation(*args, **kwargs)
 
     def set_stackup(self, stackup: Stackup) -> None:
-        """Attach a pre-constructed Stackup object."""
+        """Attach a pre-constructed Stackup object and enforce layer-count invariant."""
         if not isinstance(stackup, Stackup):
             raise TypeError("stackup must be a Stackup object")
+        if self.outline.bxy is not None and len(self.outline.bxy) != stackup.num_layers:
+            raise ValueError(
+                f"Stackup has {stackup.num_layers} layers but outline has "
+                f"{len(self.outline.bxy)} polygons. They must match."
+            )
         self.stackup = stackup
 
-    def _point_in_polygon(self, point: Point | NDArray[np.floating], polygon: Polygon) -> bool:
-        """Return True if (x,y) lies inside polygon."""
-        # Normalize point to a 2-tuple[float, float] for Path.contains_point
-        px: float = float(point[0])
-        py: float = float(point[1])
-        return Path(polygon).contains_point((px, py))
-
+    # --------------------------
+    # Via helpers
+    # --------------------------
     def add_via(self, via: Via) -> int:
         """
         Validate, assign role, then add to collection. Returns the via id.
@@ -85,6 +84,9 @@ class PDNBoard:
             raise RuntimeError(f"Via {via.xy} could not be assigned a role")
         return vid
 
+    # --------------------------
+    # Port helpers (via-ID based)
+    # --------------------------
     def add_port_by_ids(
         self,
         name: str,
@@ -109,6 +111,7 @@ class PDNBoard:
         self.ports.add(port)
         return port
 
+    # needs polishing
     def export_port_map(
         self,
         by: Literal["index", "id"] = "index",
@@ -121,7 +124,7 @@ class PDNBoard:
         - by="id":    returns via IDs (traceable in logs)
         """
         port_map: dict[str, dict[str, NDArray[np.int_]]] = {}
-        for p in self.ports:  # PortCollection is iterable
+        for p in self.ports:
             key = f"{p.role.name}:{p.name}"
             if by == "index":
                 pos = self.vias.ids_to_indices(p.positive.via_ids)
@@ -131,7 +134,6 @@ class PDNBoard:
                 neg = np.asarray(p.negative.via_ids, dtype=np.int_)
             port_map[key] = {"positive": pos, "negative": neg}
         return port_map
-
 
     # --------------------------
     # Debug helpers
