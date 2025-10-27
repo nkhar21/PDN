@@ -9,9 +9,10 @@ from copy import deepcopy
 from pathlib import Path
 import skrf as rf
 
-from BEM_AC_NVM_PDN import short_1port, connect_1decap
 from input_AH import touchstone_path, stackup_path
-from pdn_analysis.plotting import plot_z_matrix
+from utils.plotting import plot_z_matrix
+
+from utils.ztool import short_1port, connect_1decap
 
 # ---------------- config ----------------
 FSTART, FSTOP, NPOINTS = 10e3, 200e6, 201  # 10 kHz .. 200 MHz, log

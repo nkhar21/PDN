@@ -55,7 +55,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import skrf as rf
 
-from BEM_AC_NVM_PDN import PDN
+from BEM_NVM import PDN
+from CIM_NVM import main_res
 from pdn_io.spd_parser_multi import parse_spd_multi
 from pdn_io.stackup_parser import read_stackup
 

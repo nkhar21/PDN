@@ -1,5 +1,5 @@
-from BEM_AC_NVM_PDN import PDN
-from CIM_DC_RES import main_res
+from BEM_NVM import PDN
+from CIM_NVM import main_res
 from input_AH import input_path, stackup_path, R11_PowerSI
 
 from pdn_io.spd_parser import parse_spd

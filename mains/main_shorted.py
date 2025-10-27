@@ -6,14 +6,17 @@ import os
 import skrf as rf
 
 # from BEM_AC_NVM_PDN import PDN
+# from BEM_AC_NVM_PDN import main_res
 from BEM_NVM import PDN
+from CIM_NVM import main_res
 from input_AH import input_path, stackup_path, touchstone_path
 
 from pdn_io.spd_parser import parse_spd
 from pdn_io.stackup_parser import read_stackup
-from pdn_analysis.ztool import short_ports_reduce_z
-from pdn_analysis.plotting import plot_z_matrix
+from utils.ztool import short_ports_reduce_z
+from utils.plotting import plot_z_matrix
 
+from utils.geometry import segment_boundary
 
 def gen_brd_data(brd, spd_path: str, stackup_path: str, d: float = 1e-3):
     """
@@ -23,21 +26,27 @@ def gen_brd_data(brd, spd_path: str, stackup_path: str, d: float = 1e-3):
     result = parse_spd(brd, spd_path, verbose=True)
 
     # --- 2) Board boundary segments ---
-    brd.sxy = np.concatenate([brd.seg_bd_node(single_bxy, d) for single_bxy in brd.bxy], axis=0)
+    sxy_list = [segment_boundary(b, d) for b in brd.bxy]  # one sxy per layer
+    brd.sxy_list = sxy_list
+    brd.sxy = np.concatenate(sxy_list, axis=0)
+
+    # helpful index ranges per layer
     brd.sxy_index_ranges = []
     offset = 0
-    for b in brd.bxy:
-        n_seg = brd.seg_bd_node(b, d).shape[0]
+    for s in sxy_list:
+        n_seg = s.shape[0]
         brd.sxy_index_ranges.append((offset, offset + n_seg))
         offset += n_seg
-    brd.sxy_list = [brd.seg_bd_node(b, d) for b in brd.bxy]
 
     # --- 3) Stackup & layer-type ---
     die_t, er_list, d_r = read_stackup(stackup_path)
     brd.er_list, brd.die_t, brd.d_r = er_list, die_t, d_r
 
-    # --- 4) Compute Z-matrix ---
-    z = brd.calc_z_fast(res_matrix=None, verbose=True)
+    # --- 4) R computation ---
+    res_matrix = main_res(brd=brd)
+
+    # --- 5) Compute Z-matrix ---
+    z = brd.calc_z_fast(res_matrix=res_matrix, verbose=True)
 
     return (
         z,

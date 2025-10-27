@@ -2,102 +2,11 @@ from copy import deepcopy
 import numpy as np
 from math import sqrt, pi, sin, cos, log, atan
 import skrf as rf
-import matplotlib.pyplot as plt
-import os
 from shapely.geometry import Polygon
 import numpy as np
-import time
 
-def PolyArea(x, y):
-    return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
-
-
-def max_value(inputlist): 
-    return max([max(sublist) for sublist in inputlist])
-
-
-def seg_port(x0, y0, r, n=6):
-    # Define a function for port segmentation
-    # for port boundary, it must rotate clockwise
-    # x0, y0 is the port center location, r is radius
-    # n is the number of the segments
-    # sxy is a S*4 matrix, x1, y1, x2, y2
-    dtheta = 2 * pi / n
-    n = int(n)
-    sxy = np.ndarray((n, 4))
-    for i in range(0, n):
-        sxy[i, 0] = x0 + r * cos(-(i) * dtheta)
-        sxy[i, 1] = y0 + r * sin(-(i) * dtheta)
-        sxy[i, 2] = x0 + r * cos(-(i + 1) * dtheta)
-        sxy[i, 3] = y0 + r * sin(-(i + 1) * dtheta)
-    return sxy
-
-
-# short 1 port of S-parameter
-def short_1port(input_net, map2orig_input=[0, 1], shorted_port=1):
-    # default shorted port for decap is port 1. if input_net is a network, need to point out shorted port #
-    short_net = deepcopy(input_net.s11)
-    short_net.s = -1 * np.ones(short_net.f.shape[0])
-    output_net = rf.network.connect(input_net, shorted_port, short_net, 0)
-    map2orig_output = deepcopy(map2orig_input)
-    del map2orig_output[shorted_port]
-    return output_net, map2orig_output
-
-
-def connect_1decap(input_net_z, map2orig_input, connect_port, decap_z11):
-    Zaa = deepcopy(input_net_z)
-    Zaa = np.delete(Zaa, connect_port, 1)
-    Zaa = np.delete(Zaa, connect_port, 2)
-    Zpp = input_net_z[:, connect_port, connect_port]
-    Zpp = Zpp.reshape((Zpp.shape[0], 1, 1))
-    Zqq = decap_z11
-    Zap = input_net_z[:, :, connect_port]
-    Zap = Zap.reshape((Zap.shape[0], Zap.shape[1], 1))
-    Zap = np.delete(Zap, connect_port, 1)
-    Zpa = input_net_z[:, connect_port, :]
-    Zpa = Zpa.reshape((Zpa.shape[0], 1, Zpa.shape[1]))
-    Zpa = np.delete(Zpa, connect_port, 2)
-    inv = np.linalg.inv(Zpp + Zqq)
-    second = np.einsum('rmn,rkk->rmn', Zap, inv)
-    second = np.einsum('rmn,rnd->rmd', second, Zpa)
-    output_net_z = Zaa - second
-    map2orig_output = deepcopy(map2orig_input)
-    del map2orig_output[connect_port]
-    return output_net_z, map2orig_output
-
-
-def delete_multiple_element(list_object, indices):
-    indices = sorted(indices, reverse=True)
-    for idx in indices:
-        if idx < len(list_object):
-            list_object.pop(idx)
-
-
-# find the indices of multiple elements in a list
-def find_index(input_list, element_list):
-    index_list = []
-    for e in element_list:
-        index_list.append(input_list.index(int(e)))
-    return index_list
-
-
-# merge a square matrix by list of indices
-def merge_square_mat(Min, merge_port_list, map2orig_input=[]):
-    # by default, the first index in merge_port_list will be kept after merging
-    Mout = deepcopy(Min)
-    if map2orig_input == []:
-        map2orig_output = list(range(0, Min.shape[0]))
-    else:
-        map2orig_output = deepcopy(map2orig_input)
-
-    for i in merge_port_list[1:]:
-        Mout[merge_port_list[0], :] += Mout[i, :]
-        Mout[:, merge_port_list[0]] += Mout[:, i]
-
-    Mout = np.delete(np.delete(Mout, merge_port_list[1:], axis=0), merge_port_list[1:], axis=1)
-
-    delete_multiple_element(map2orig_output, merge_port_list[1:])
-    return Mout, map2orig_output
+from utils.geometry import polygon_area, segment_port
+from utils.arrayops import max_value, find_index, merge_square_mat
 
 
 # branch contains: branch #, node1, node2, cavity #, global via #
@@ -157,7 +66,7 @@ def calc_lpul_bem(via_xy, via_r, sxy, option='v1', n=6):
     d = 1   # unit thickness (scaled later)
     R = 0.3 # “far-field” distance cap
 
-    area = np.array([PolyArea(sxy[:, 0], sxy[:, 1])]) # board cross-sectional area
+    area = np.array([polygon_area(sxy[:, 0], sxy[:, 1])]) # board cross-sectional area
 
     if option == 'v1':
 
@@ -303,7 +212,7 @@ def calc_lpul_bem(via_xy, via_r, sxy, option='v1', n=6):
         l_pul_nseg = np.zeros((Nvia * n, Nvia * n))
 
         for i in range(0, Nvia):
-            s = seg_port(via_xy[i, 0], via_xy[i, 1], via_r, n)
+            s = segment_port(via_xy[i, 0], via_xy[i, 1], via_r, n)
             if i == 0:
                 svia = s
             else:
@@ -1304,128 +1213,6 @@ class PDN():
 
         self.decap_z = np.array([])  # the z matrix forms by all added decaps
         # self.decap_list = self.init_decap_library()
-
-    def init_decap_library(self):
-        decap_list = []
-        decap_0, _ = short_1port(rf.Network('decap/0_GRM033C80J104KE84.s2p').interpolate(self.freq))
-        decap_list.append(decap_0.z)
-        decap_1, _ = short_1port(rf.Network('decap/1_GRM033R60J474KE90.s2p').interpolate(self.freq))
-        decap_list.append(decap_1.z)
-        decap_2, _ = short_1port(rf.Network('decap/2_GRM155B31C105KA12.s2p').interpolate(self.freq))
-        decap_list.append(decap_2.z)
-        decap_3, _ = short_1port(rf.Network('decap/3_GRM155C70J225KE11.s2p').interpolate(self.freq))
-        decap_list.append(decap_3.z)
-        decap_4, _ = short_1port(rf.Network('decap/4_GRM185C81A475KE11.s2p').interpolate(self.freq))
-        decap_list.append(decap_4.z)
-        decap_5, _ = short_1port(rf.Network('decap/5_GRM188R61A106KAAL.s2p').interpolate(self.freq))
-        decap_list.append(decap_5.z)
-        decap_6, _ = short_1port(rf.Network('decap/6_GRM188B30J226MEA0.s2p').interpolate(self.freq))
-        decap_list.append(decap_6.z)
-        decap_7, _ = short_1port(rf.Network('decap/7_GRM219D80E476ME44.s2p').interpolate(self.freq))
-        decap_list.append(decap_7.z)
-        decap_8, _ = short_1port(rf.Network('decap/8_GRM31CR60J227ME11.s2p').interpolate(self.freq))
-        decap_list.append(decap_8.z)
-        decap_9, _ = short_1port(rf.Network('decap/9_GRM32EC80E337ME05.s2p').interpolate(self.freq))
-        decap_list.append(decap_9.z)
-        return decap_list
-
-    def init_para(self):
-
-        self.via_xy = deepcopy(self.ic_via_xy)
-        self.via_type = deepcopy(self.ic_via_type)
-        self.via_loc = np.ones(self.ic_via_type.shape)
-
-    def seg_bd_node(self, bxy, dl):
-        # For outer boundary, it must rotate counter-clockwise !!!
-        # note that input matrix bxy must go back to the origin point!!!
-        # bxy is the boundary coordinate information,N*2 matrix
-        # dl is the length of the segments
-        # sxy is a S*4 matrix, x1, y1, x2, y2. S - number of segments
-
-        # if dl is smaller than the interval of the bxy points, do linear
-        # interpolation
-
-        '''Another way is to use numpy.append here'''
-
-        bxy_old = deepcopy(bxy)
-        if bxy_old[-1, 0] != bxy_old[0, 0] or bxy_old[-1, 1] != bxy_old[0, 1]:
-            bxy = np.zeros((bxy_old.shape[0] + 1, bxy_old.shape[1]))
-            bxy[0:-1, :] = bxy_old
-            bxy[-1, :] = bxy_old[0, :]
-        # calculate number of segments needed first
-        nseg = 0
-        for i in range(0, bxy.shape[0] - 1):
-            len_ith = sqrt((bxy[i + 1, 0] - bxy[i, 0]) ** 2 + (bxy[i + 1, 1] - bxy[i, 1]) ** 2)
-            if dl <= len_ith:
-                ne = np.floor(len_ith / dl)
-                if (len_ith - ne * dl) > dl * 0.01:
-                    nseg += ne + 1
-                else:
-                    nseg += ne
-            else:
-                nseg += 1
-        nseg = nseg.astype(int)
-        sxy = np.ndarray((nseg, 4))
-        s = 0
-        for i in range(0, bxy.shape[0] - 1):
-            len_ith = sqrt((bxy[i + 1, 0] - bxy[i, 0]) ** 2 + (bxy[i + 1, 1] - bxy[i, 1]) ** 2)
-            if dl <= len_ith:
-                ne = np.floor(len_ith / dl).astype(int)
-                for j in range(0, ne):
-                    sxy[s, 0] = bxy[i, 0] + j * dl / len_ith * (bxy[i + 1, 0] - bxy[i, 0])
-                    sxy[s, 1] = bxy[i, 1] + j * dl / len_ith * (bxy[i + 1, 1] - bxy[i, 1])
-                    sxy[s, 2] = bxy[i, 0] + (j + 1) * dl / len_ith * (bxy[i + 1, 0] - bxy[i, 0])
-                    sxy[s, 3] = bxy[i, 1] + (j + 1) * dl / len_ith * (bxy[i + 1, 1] - bxy[i, 1])
-                    s += 1
-                if (len_ith - ne * dl) > dl * 0.01:
-                    sxy[s, 0] = bxy[i, 0] + (j + 1) * dl / len_ith * (bxy[i + 1, 0] - bxy[i, 0])
-                    sxy[s, 1] = bxy[i, 1] + (j + 1) * dl / len_ith * (bxy[i + 1, 1] - bxy[i, 1])
-                    sxy[s, 2] = bxy[i + 1, 0]
-                    sxy[s, 3] = bxy[i + 1, 1]
-                    s += 1
-            else:
-                sxy[s, 0] = bxy[i, 0]
-                sxy[s, 1] = bxy[i, 1]
-                sxy[s, 2] = bxy[i + 1, 0]
-                sxy[s, 3] = bxy[i + 1, 1]
-                s += 1
-        return sxy
-
-    def seg_port(self, x0, y0, r, n=6):
-        # Define a function for port segmentation
-        # for port boundary, it must rotate clockwise
-        # x0, y0 is the port center location, r is radius
-        # n is the number of the segments
-        # sxy is a S*4 matrix, x1, y1, x2, y2
-        dtheta = 2 * pi / n
-        n = int(n)
-        sxy = np.ndarray((n, 4))
-        for i in range(0, n):
-            sxy[i, 0] = x0 + r * cos(-(i) * dtheta)
-            sxy[i, 1] = y0 + r * sin(-(i) * dtheta)
-            sxy[i, 2] = x0 + r * cos(-(i + 1) * dtheta)
-            sxy[i, 3] = y0 + r * sin(-(i + 1) * dtheta)
-        return sxy
-
-    def seg_bd(self):
-        # segment the outer and inner boundary
-        # only support one inner boundary (one void)
-        e = 8.85e-12
-        self.outer_sxy = self.seg_bd_node(self.outer_bd_node, self.seg_len)
-        if self.inner_bd_node.size == 0 and self.inner_sxy.size == 0:
-            self.sxy = self.outer_sxy
-            self.area = np.array([PolyArea(self.sxy[:, 0], self.sxy[:, 1])])
-        elif self.inner_bd_node.size == 0:
-            self.sxy = np.concatenate((self.outer_sxy, self.inner_sxy))
-            self.area = np.array([PolyArea(self.outer_sxy[:, 0], self.outer_sxy[:, 1])
-                                  - PolyArea(self.inner_sxy[:, 0], self.inner_sxy[:, 1])])
-        else:
-            self.inner_sxy = self.seg_bd_node(self.inner_bd_node, self.seg_len)
-            self.sxy = np.concatenate((self.outer_sxy, self.inner_sxy))
-            self.area = np.array([PolyArea(self.outer_sxy[:, 0], self.outer_sxy[:, 1])
-                                  - PolyArea(self.inner_sxy[:, 0], self.inner_sxy[:, 1])])
-        #self.C_pul = self.er * e * self.area / 1
-        self.C_pul = np.array([er * e * area / 1 for er, area in zip(self.er_list, self.area)])        
 
     def calc_z_fast(self, res_matrix=None, verbose: bool = False):
         e = 8.85e-12

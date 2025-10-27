@@ -9,12 +9,14 @@ from pathlib import Path
 from copy import deepcopy
 import skrf as rf
 
-from BEM_AC_NVM_PDN import PDN, short_1port, connect_1decap
-from CIM_DC_RES import main_res
+from BEM_NVM import PDN
+from CIM_NVM import main_res
 from input_AH import input_path, stackup_path, touchstone_path
+
 from pdn_io.spd_parser import parse_spd
 from pdn_io.stackup_parser import read_stackup
-from pdn_analysis.plotting import plot_z_matrix
+from utils.plotting import plot_z_matrix
+from utils.ztool import short_1port, connect_1decap
 
 # ------------------ Config ------------------
 FSTART  = 10e3          # 10 kHz

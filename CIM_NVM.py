@@ -1,132 +1,8 @@
 import numpy as np
-from math import sqrt, pi, sin, cos, log
-from copy import deepcopy
+from math import sqrt, pi, log
 import time
 from itertools import combinations
-
-
-def seg_bd_node(bxy_b, dl):
-    """
-    Discretize the **outer board boundary** polygon into straight segments
-    of ~length `dl`, ordered **counter-clockwise (CCW)** for CIM sign consistency.
-
-    Parameters
-    ----------
-    bxy_b : (..., N, 2)
-        Boundary vertices (meters). Must trace the outline **CCW** and
-        the path must end at the start point (closed). If not closed,
-        this function appends the first point to the end.
-        If shape is (1, N, 2), unwrap to (N, 2).
-    dl : float
-        Target segment length (meters). Each polygon edge is split into
-        roughly floor(edge_len/dl) segments; a small remainder creates
-        one last short segment if > 1% of dl.
-
-    Returns
-    -------
-    sxy : (S, 4) array
-        Segment endpoints as rows [x1, y1, x2, y2] in meters, CCW order.
-    """
-
-    # Make a working copy; unwrap (1, N, 2) → (N, 2)
-    bxy_old = deepcopy(bxy_b)
-    if bxy_old.ndim == 3 and bxy_old.shape[0] == 1:
-        bxy_old = bxy_old[0]
-
-    # Ensure the polygon is **closed**: last vertex equals first vertex
-    if bxy_old[-1, 0] != bxy_old[0, 0] or bxy_old[-1, 1] != bxy_old[0, 1]:
-        bxy_b = np.zeros((bxy_old.shape[0] + 1, bxy_old.shape[1]))
-        bxy_b[0:-1, :] = bxy_old
-        bxy_b[-1, :]   = bxy_old[0, :]
-    else:
-        bxy_b = bxy_old
-
-    # First pass: count how many segments S we will generate
-    nseg = 0
-    for i in range(bxy_b.shape[0] - 1):
-        len_ith = sqrt((bxy_b[i + 1, 0] - bxy_b[i, 0])**2 + (bxy_b[i + 1, 1] - bxy_b[i, 1])**2)
-        if dl <= len_ith:
-            ne = np.floor(len_ith / dl)
-            # If remainder is > 1% of dl, add one more segment to cover it
-            nseg += ne + 1 if (len_ith - ne * dl) > dl * 0.01 else ne
-        else:
-            # Edge shorter than dl → keep as one segment
-            nseg += 1
-    nseg = int(nseg)
-
-    # Second pass: generate the actual segments [x1,y1,x2,y2]
-    sxy = np.ndarray((nseg, 4))
-    s = 0
-    for i in range(bxy_b.shape[0] - 1):
-        x0, y0 = bxy_b[i, 0],     bxy_b[i, 1]
-        x1, y1 = bxy_b[i + 1, 0], bxy_b[i + 1, 1]
-        len_ith = sqrt((x1 - x0)**2 + (y1 - y0)**2)
-
-        if dl <= len_ith:
-            ne = int(np.floor(len_ith / dl))
-            # Uniform sub-segments of length ~dl
-            for j in range(ne):
-                sxy[s, 0] = x0 + j      * dl / len_ith * (x1 - x0)
-                sxy[s, 1] = y0 + j      * dl / len_ith * (y1 - y0)
-                sxy[s, 2] = x0 + (j + 1)* dl / len_ith * (x1 - x0)
-                sxy[s, 3] = y0 + (j + 1)* dl / len_ith * (y1 - y0)
-                s += 1
-            # Trailing remainder segment (if > 1% of dl)
-            if (len_ith - ne * dl) > dl * 0.01:
-                sxy[s, 0] = x0 + (j + 1)* dl / len_ith * (x1 - x0)
-                sxy[s, 1] = y0 + (j + 1)* dl / len_ith * (y1 - y0)
-                sxy[s, 2] = x1
-                sxy[s, 3] = y1
-                s += 1
-        else:
-            # Single segment for a short edge
-            sxy[s, 0] = x0; sxy[s, 1] = y0
-            sxy[s, 2] = x1; sxy[s, 3] = y1
-            s += 1
-
-    # NOTE:
-    # - **Orientation**: This function does not re-order vertices; the caller must supply
-    #   the outline in **CCW** order (CIM sign convention). If your polygon is CW, reverse it.
-    # - The via rims (ports) are segmented **clockwise** (segment_port); opposite orientation
-    #   between inner (CW) and outer (CCW) contours is intentional in CIM to keep signs consistent.
-    return sxy
-
-
-def segment_port(x0, y0, r, n):
-    """
-    Discretize a circular via rim (port) into **n straight segments** in **clockwise (CW)** order.
-
-    Notes on method (CIM context)
-    -----------------------------
-    - This is the **conventional CIM** polygonal discretization: a circle is approximated by
-      n straight edges. It is *not* the circular-element (harmonic/modal) expansion from [2].
-    - Larger n ⇒ better geometric/field approximation but higher cost. In practice, n≈6-16
-      is a good DC trade-off for via-sized rims.
-    - CW orientation is important to keep CIM sign conventions consistent with the outer
-      boundary (which is typically CCW); reversing orientation flips U/H signs.
-
-    Parameters
-    ----------
-    x0, y0 : center of the via (m)
-    r      : via rim radius (m)
-    n      : number of segments (int)
-
-    Returns
-    -------
-    sxy : (n,4) array of segment endpoints [x1, y1, x2, y2], ordered CW.
-    """
-    dtheta = 2 * pi / n
-    n = int(n)
-    sxy = np.ndarray((n, 4))
-    for i in range(n):
-        # Use negative angles to advance CW
-        sxy[i, 0] = x0 + r * cos(-(i)     * dtheta)
-        sxy[i, 1] = y0 + r * sin(-(i)     * dtheta)
-        sxy[i, 2] = x0 + r * cos(-(i + 1) * dtheta)
-        sxy[i, 3] = y0 + r * sin(-(i + 1) * dtheta)
-    return sxy
-
-
+from utils.geometry import segment_boundary, segment_port
 
 def planesresistance(bxy_b, via_xy_b, via_r, d):
     """
@@ -155,12 +31,10 @@ def planesresistance(bxy_b, via_xy_b, via_r, d):
     # via_sxy: CW arcs around each via center → K segments per via
     via_sxy = np.zeros((via_xy_b.shape[0] * num_via_seg, 4))  # [x1,y1,x2,y2] per segment
     for i in range(via_xy_b.shape[0]):
-        via_sxy[i*num_via_seg:(i+1)*num_via_seg, :] = segment_port(
-            via_xy_b[i, 0], via_xy_b[i, 1], via_r, num_via_seg
-        )
+        via_sxy[i*num_via_seg:(i+1)*num_via_seg, :] = segment_port(via_xy_b[i, 0], via_xy_b[i, 1], via_r, num_via_seg)
 
     # s_b: CCW segmentation of the outer board boundary
-    s_b = seg_bd_node(bxy_b, dl)
+    s_b = segment_boundary(bxy_b, dl)
 
     # Concatenate: first all *via* segments (C′), then the *outer* boundary segments (C)
     b = np.concatenate((via_sxy, s_b))
@@ -247,7 +121,6 @@ def planesresistance(bxy_b, via_xy_b, via_r, d):
             rb[i, j] = (1.0 / np.sum(G[i, :])) if i == j else (-1.0 / G[i, j])
 
     return rb
-
 
 
 def org_resistance(
