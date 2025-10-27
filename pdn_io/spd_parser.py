@@ -171,10 +171,27 @@ def parse_spd(
     # pre_u, post_u = _dedupe_and_count(brd, eps=1e-7, rdec=9) # moved into BEM L calc
     # log(f"[SPD] Dedupe adjusted {post_u - pre_u} duplicate(s) (eps=1e-7 m)")
 
+    _build_master_vias(brd)
+    print(f"[SPD] Master via xy list built: total {brd.via_xy_master.shape[0]} via(s): \n{brd.via_xy_master}")
+    print(f"[SPD] Master via type list built: total {brd.via_type_master.shape[0]} via(s): {brd.via_type_master}")
+    print(f"[SPD] Master via start layer list built: total {brd.via_start_layer_master.shape[0]} via(s): {brd.via_start_layer_master}")
+    print(f"[SPD] Master via stop layer list built: total {brd.via_stop_layer_master.shape[0]} via(s): {brd.via_stop_layer_master}")    
+
     # 10) Infer stackup mask (0=GND-return layer, 1=PWR layer)
     brd.stackup = _infer_stackup_mask(text, node_info=node_info)
     log(f"[SPD] Stackup mask: len={len(brd.stackup)}  PWR={int(np.sum(brd.stackup))}  GND={int(len(brd.stackup)-np.sum(brd.stackup))}")
     log(f"[SPD] Stackup mask (full): {brd.stackup}")
+
+
+    # ---- master touches flags (now stackup length is known) ----
+    top_idx    = 0
+    bottom_idx = len(brd.stackup) - 1
+    brd.master_touches_top    = (brd.via_start_layer_master == top_idx).astype(np.int32)
+    brd.master_touches_bottom = (brd.via_stop_layer_master  == bottom_idx).astype(np.int32)
+    print(f"[SPD] Master via touches top layer flags: {brd.master_touches_top}")
+    print(f"[SPD] Master via touches bottom layer flags: {brd.master_touches_bottom}")
+
+
 
     # Print a via table summary
     _print_via_table(brd, log)
@@ -1455,3 +1472,88 @@ def _inject_dummy_plane_terminals(
         # log(f"[SPD] Injected dummy via: ({upper}@L{node_info[upper]['layer']})->({lower}@L{node_info[lower]['layer']}) net={net_l}")
 
     return via_lines
+
+
+
+def _build_master_vias(brd, snap_dec=7):
+    """
+    Build the 'master' via table by deduplicating physically identical vias
+    across groups. Uses the existing global arrays:
+      brd.start_layers, brd.stop_layers, brd.via_type
+    and group arrays:
+      brd.ic_via_xy, brd.decap_via_xy, brd.buried_via_xy, brd.blind_via_xy (optional)
+    in that discovery order: IC → Decap → Buried → Blind.
+    """
+    # Group counts (robust to missing/empty)
+    n_ic     = 0 if getattr(brd, "ic_via_xy", None)     is None else brd.ic_via_xy.shape[0]
+    n_decap  = 0 if getattr(brd, "decap_via_xy", None)  is None else brd.decap_via_xy.shape[0]
+    n_buried = 0 if not hasattr(brd, "buried_via_xy") or brd.buried_via_xy is None else (
+               0 if brd.buried_via_xy.size == 0 else brd.buried_via_xy.shape[0])
+    n_blind  = 0 if not hasattr(brd, "blind_via_xy") or brd.blind_via_xy is None else (
+               0 if brd.blind_via_xy.size == 0 else brd.blind_via_xy.shape[0])
+
+    # Concatenate XY in the same order as start/stop/type were filled
+    parts_xy = []
+    if n_ic:     parts_xy.append(np.atleast_2d(brd.ic_via_xy))
+    if n_decap:  parts_xy.append(np.atleast_2d(brd.decap_via_xy))
+    if n_buried: parts_xy.append(np.atleast_2d(brd.buried_via_xy))
+    if n_blind:  parts_xy.append(np.atleast_2d(brd.blind_via_xy))
+
+    if parts_xy:
+        xy_all = np.vstack(parts_xy)
+    else:
+        # Nothing → zero everything and return
+        brd.via_xy_master = np.zeros((0, 2))
+        brd.via_type_master = np.zeros((0,), np.int32)
+        brd.via_start_layer_master = np.zeros((0,), np.int32)
+        brd.via_stop_layer_master  = np.zeros((0,), np.int32)
+        brd.ic_old2new = brd.decap_old2new = brd.buried_old2new = brd.blind_old2new = np.zeros((0,), np.int32)
+        return
+
+    # Global arrays were assembled earlier in the same order (IC→Decap→Buried→Blind)
+    st_all  = np.asarray(brd.start_layers, dtype=np.int32).ravel()
+    sp_all  = np.asarray(brd.stop_layers,  dtype=np.int32).ravel()
+    ty_all  = np.asarray(brd.via_type,     dtype=np.int32).ravel()
+
+    assert xy_all.shape[0] == st_all.size == sp_all.size == ty_all.size, \
+        "[SPD] _build_master_vias: length mismatch (xy/start/stop/type)"
+
+    # Dedup key = (x,y,start,stop,type), all snapped
+    def key(i):
+        return (
+            round(float(xy_all[i, 0]), snap_dec),
+            round(float(xy_all[i, 1]), snap_dec),
+            int(st_all[i]),
+            int(sp_all[i]),
+            int(ty_all[i]),
+        )
+
+    uniq = {}
+    keep = []
+    old2new_global = np.empty(xy_all.shape[0], dtype=np.int32)
+    for i in range(xy_all.shape[0]):
+        k = key(i)
+        j = uniq.get(k)
+        if j is None:
+            j = len(keep)
+            keep.append(i)
+            uniq[k] = j
+        old2new_global[i] = j
+
+    keep = np.asarray(keep, dtype=np.int32)
+
+    # Master arrays
+    brd.via_xy_master           = xy_all[keep]
+    brd.via_type_master         = ty_all[keep]
+    brd.via_start_layer_master  = st_all[keep]
+    brd.via_stop_layer_master   = sp_all[keep]
+
+    # Per-group remaps (from each group’s local index to master index)
+    sizes  = [n_ic, n_decap, n_buried, n_blind]
+    names  = ["ic", "decap", "buried", "blind"]
+    offsets = np.cumsum([0] + sizes[:-1])
+    for name, count, off in zip(names, sizes, offsets):
+        if count == 0:
+            setattr(brd, f"{name}_old2new", np.zeros((0,), np.int32))
+            continue
+        setattr(brd, f"{name}_old2new", old2new_global[off:off+count])

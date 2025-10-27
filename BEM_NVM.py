@@ -310,7 +310,6 @@ def org_merge_pdn(stackup, via_type, start_layer, stop_layer,
                   top_port_num, bot_port_num, top_port_grp, bot_port_grp):
 
 
-
     branch = np.zeros((1, 4))  # four columns: node 1, node 2, cavity num, global via num
     layer_com_node = -1 * np.ones((stackup.shape[0]))  # the common node number for each layer
     # positive node and negative node for different ports
@@ -1142,6 +1141,16 @@ def org_merge_pdn(stackup, via_type, start_layer, stop_layer,
 
 class PDN():
     def __init__(self):
+        self.master_touches_top    = np.array([])
+        self.master_touches_bottom = np.array([])
+
+        self.via_xy_master = np.array([])  # x,y locations of all vias before merging, 2-column matrix ### parser
+        self.via_type_master = np.array([])  # type of all vias before merging
+        self.via_start_layer_master = np.array([])  # start layer of all vias before merging
+        self.via_stop_layer_master = np.array([])  # stop layer of all vias before merging
+
+
+        #################################################################################################################
         self.ic_node_names = np.array([])  # names of IC nodes (nk)
         self.decap_node_names = np.array([])  # names of decap nodes (nk)
         self.top_port_num = np.array([])  # ports on the top layer (nk) ### here
@@ -1217,15 +1226,28 @@ class PDN():
     def calc_z_fast(self, res_matrix=None, verbose: bool = False):
         e = 8.85e-12
 
-        # ---- Via lists (IC + DECAP + optional BURIED) ----
-        via_xy   = np.concatenate((self.ic_via_xy, self.decap_via_xy, self.buried_via_xy, self.blind_via_xy), axis=0) 
-        via_type = np.concatenate((self.ic_via_type, self.decap_via_type, self.buried_via_type, self.blind_via_type), axis=0) # 1 for pwr, 0 for gnd
-        via_loc  = np.concatenate((self.ic_via_loc,  self.decap_via_loc),  axis=0) # 1 for top, 0 for bottom
+        # ==== Master via arrays (authoritative) ====
+        via_xy      = self.via_xy_master
+        via_type    = self.via_type_master              # 1=PWR, 0=GND
+        start_layer = self.via_start_layer_master
+        stop_layer  = self.via_stop_layer_master
+        N           = int(via_type.shape[0])
 
-        via_r   = deepcopy(self.via_r) # via radius
-        stackup = deepcopy(self.stackup) # stackup mask (1-pwr, 0-gnd)
-        sxy     = deepcopy(self.sxy) # segnented outline of each layer
-        die_t   = deepcopy(self.die_t) # dielectric thickness
+        # Surface-touch flags (no "nudging" logic)
+        touch_top    = (start_layer == 0)
+        touch_bottom = (stop_layer  == self.stackup.shape[0] - 1)
+
+        # --- Port bookkeeping (size == Nmaster) ---
+        top_port_num = [[-1] for _ in range(N)]         # per-via assigned top-port id (or -1)
+        bot_port_num = [[-1] for _ in range(N)]         # per-via assigned bottom-port id (or -1)
+        top_port_grp = np.full((N,), -1, dtype=np.int32)  # keep arrays for downstream API
+        bot_port_grp = np.full((N,), -1, dtype=np.int32)
+
+        # Keep the usual local copies
+        via_r   = deepcopy(self.via_r)
+        stackup = deepcopy(self.stackup)
+        sxy_list     = deepcopy(self.sxy_list)
+        die_t   = deepcopy(self.die_t)
 
         # ---- Board area / per-cavity area ----
         def get_overlap_area(shape1, shape2):
@@ -1234,68 +1256,81 @@ class PDN():
             inter = poly1.intersection(poly2)
             return inter.area if not inter.is_empty else 0.0
 
+        self.area  = [get_overlap_area(self.bxy[i], self.bxy[i+1]) for i in range(len(self.bxy)-1)]
 
-        # Pairwise overlap of consecutive shapes
-        self.area = [get_overlap_area(self.bxy[i], self.bxy[i + 1])
-                                    for i in range(len(self.bxy) - 1)]
+        # ============================
+        # Robust PORT assignment
+        # ============================
 
-        self.C_pul = np.array([er * e * area for er, area in zip(self.er_list, self.area)])
-        C_pul = deepcopy(self.C_pul)
+        # Identify which master indices are IC/Decap (exclude blind/buried from ports)
+        ic_old2new    = getattr(self, "ic_old2new",    np.zeros((0,), np.int32))
+        decap_old2new = getattr(self, "decap_old2new", np.zeros((0,), np.int32))
 
-        # ---- Port mapping containers (top/bottom) ----
+        is_ic        = np.zeros(N, dtype=bool);    is_ic[ic_old2new]    = True
+        is_decap     = np.zeros(N, dtype=bool); is_decap[decap_old2new] = True
+        is_port_via  = is_ic | is_decap
 
-        # port number assigned to via i if it terminates in the top cavity
-        top_port_num = [[-1] for _ in range(via_xy.shape[0])] # -1 = unset
-        
-        # same idea for the bottom cavity
-        bot_port_num = [[-1] for _ in range(via_xy.shape[0])] # -1 = unset
+        # Helper: pair (+) with (−) without ever creating half-ports
+        def assign_ports(indices, side="top", start_port=0):
+            """
+            indices: array/list of candidate master indices (already filtered)
+            side:    "top" or "bottom"
+            returns: next_port_number (int)
+            """
+            port = int(start_port)
+            pwr_bucket, gnd_bucket = [], []
+            for i in indices:
+                if via_type[i] == 1:  # PWR
+                    pwr_bucket.append(i)
+                else:                 # GND
+                    gnd_bucket.append(i)
+                # Commit pairs as long as both buckets have members
+                while pwr_bucket and gnd_bucket:
+                    pi = pwr_bucket.pop(0)
+                    gi = gnd_bucket.pop(0)
+                    if side == "top":
+                        top_port_num[pi] = [port]
+                        top_port_num[gi] = [port]
+                    else:
+                        bot_port_num[pi] = [port]
+                        bot_port_num[gi] = [port]
+                    port += 1
+            # Leftovers are intentionally NOT made into half-ports
+            return port
 
-        # group indices for vias that belong to the same logical port group 
-        # (used when merging multiple pins together)
-        top_port_grp = -1 * np.ones((via_xy.shape[0]), dtype=int)
-        bot_port_grp = -1 * np.ones((via_xy.shape[0]), dtype=int)
+        port_num = 0
 
-        # ---- Heuristic mapping (only used if explicit maps are unusable) ----
-        port_num = 1
-        pwr_count = gnd_count = 0
+        # --- IC port on TOP as port 0 (only if both +/− exist on top) ---
+        ic_top      = np.where(is_ic & touch_top)[0]
+        ic_top_p    = ic_top[via_type[ic_top] == 1]
+        ic_top_g    = ic_top[via_type[ic_top] == 0]
+        if ic_top_p.size and ic_top_g.size:
+            top_port_num[int(ic_top_p[0])] = [port_num]
+            top_port_num[int(ic_top_g[0])] = [port_num]
+            port_num += 1
+        # (Any extra IC pins beyond one pair will be paired below together with decaps.)
 
-        # Assume IC is port 0, and all decaps have 2 connections.
-        # And all IC ports are connected using via, (not anchored to the plance for ex)
-        
-        # Top cavity
-        for i in range(via_loc.shape[0]):
-            if i < self.ic_via_xy.shape[0]:  # IC via → port 0
-                top_port_num[i] = [0]
-                continue
-            if via_loc[i] == 1:
-                top_port_num[i] = [port_num]
-                if via_type[i] == 1:
-                    pwr_count += 1
-                else:
-                    gnd_count += 1
-                if pwr_count == gnd_count and pwr_count > 0:
-                    port_num += 1
-                    pwr_count = gnd_count = 0
+        # --- Decap ports on TOP (if any) ---
+        decap_top = np.where(is_decap & touch_top)[0]
+        port_num  = assign_ports(decap_top, side="top", start_port=port_num)
 
-        # Bottom cavity
-        pwr_count = gnd_count = 0
-        for i in range(via_loc.shape[0]):
-            if via_loc[i] == 0:
-                bot_port_num[i] = [port_num]
-                if via_type[i] == 1:
-                    pwr_count += 1
-                else:
-                    gnd_count += 1
-                if pwr_count == gnd_count and pwr_count > 0:
-                    port_num += 1
-                    pwr_count = gnd_count = 0
+        # --- Decap ports on BOTTOM (most common) ---
+        decap_bot = np.where(is_decap & touch_bottom)[0]
+        port_num  = assign_ports(decap_bot, side="bottom", start_port=port_num)
 
-        # Anchor IC PWR group on top, if desired
-        top_port_grp[np.where(self.ic_via_type == 1)[0]] = 0
+        # (Optional but recommended) WARN if any port vias were left unpaired
+        def _unpaired(which, arr):
+            idx = np.where((is_port_via & which) & (np.array([a[0] for a in arr]) == -1))[0]
+            return idx.tolist()
 
-        # ---- Inductance per unit length via BEM ----
-        sxy   = np.concatenate(deepcopy(self.sxy_list), axis=0)
-        via_r = deepcopy(self.via_r)
+        unpaired_top = _unpaired(touch_top,    top_port_num)
+        unpaired_bot = _unpaired(touch_bottom, bot_port_num)
+        if len(unpaired_top) or len(unpaired_bot):
+            print(f"[PDN WARN] Unpaired candidate port vias (top={unpaired_top}, bottom={unpaired_bot}). "
+                "They will not form ports (by design).")
+
+        # DO NOT try to “anchor” by legacy arrays like self.ic_via_type here — use master + the maps above.
+        # From this point on, use top_port_num / bot_port_num / top_port_grp / bot_port_grp as usual.
 
         # ---- Merge PDN graph (branches/ports/groups from layer start/stop) ----
         branch, layer_com_node, port_node, port_grp_node_num, branch_merge_list = org_merge_pdn(
@@ -1307,7 +1342,7 @@ class PDN():
         L_big = np.zeros((branch.shape[0], branch.shape[0]))
         
         for c in range(stackup.shape[0] - 1):
-            sxy_c   = self.sxy_list[c]
+            sxy_c   = sxy_list[c]
             idx_c   = np.where(branch[:, 3] == c)[0]
             bi      = branch[idx_c, 0].astype(int)
             vi      = branch[idx_c, 4].astype(int)
@@ -1455,7 +1490,7 @@ class PDN():
 
             # 8) Per-via table
             # for i_v in range(len(self.start_layers)):
-            #     print(f"[VIA {i_v}] type={via_type[i_v]} start={self.start_layers[i_v]} stop={self.stop_layers[i_v]} xy={via_xy[i_v]}")
+            #     print(f"[BEM NVM] VIA {i_v}] type={via_type[i_v]} start={self.start_layers[i_v]} stop={self.stop_layers[i_v]} xy={via_xy[i_v]}")
 
         # ---- Choose reference node: ground of first port ----``
         map2old_node = new_old_node_map[:, 1].astype(int).tolist()

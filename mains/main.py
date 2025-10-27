@@ -11,6 +11,7 @@ from input_AH import input_path, stackup_path, touchstone_path
 from pdn_io.spd_parser import parse_spd
 from pdn_io.stackup_parser import read_stackup
 from utils.plotting import plot_z_matrix
+from utils.geometry import segment_boundary
  
 def gen_brd_data(
     brd,
@@ -27,15 +28,18 @@ def gen_brd_data(
                        ic_port_tag="ic_port", decap_port_tag="decap_port",
                        verbose=True)
     
-    # --- 2) Board boundary segmentation (unchanged logic) ---
-    brd.sxy = np.concatenate([brd.seg_bd_node(single_bxy, d) for single_bxy in brd.bxy], axis=0)
+    # --- 2) Board boundary segments ---
+    sxy_list = [segment_boundary(b, d) for b in brd.bxy]  # one sxy per layer
+    brd.sxy_list = sxy_list
+    brd.sxy = np.concatenate(sxy_list, axis=0)
+
+    # helpful index ranges per layer
     brd.sxy_index_ranges = []
     offset = 0
-    for b in brd.bxy:
-        n_seg = brd.seg_bd_node(b, d).shape[0]
+    for s in sxy_list:
+        n_seg = s.shape[0]
         brd.sxy_index_ranges.append((offset, offset + n_seg))
         offset += n_seg
-    brd.sxy_list = [brd.seg_bd_node(b, d) for b in brd.bxy]
 
     # --- 3) Stackup ---
     die_t, er_list, d_r = read_stackup(stackup_path)
@@ -43,8 +47,20 @@ def gen_brd_data(
     brd.die_t = die_t
     brd.d_r = d_r
 
+    # after brd.stackup is set
+    top_idx    = 0
+    bottom_idx = len(brd.stackup) - 1
+    brd.master_touches_top    = (brd.via_start_layer_master == top_idx).astype(np.int32)
+    brd.master_touches_bottom = (brd.via_stop_layer_master  == bottom_idx).astype(np.int32)
+    # sanity
+    assert brd.master_touches_top.sum()    == np.count_nonzero(brd.via_start_layer_master == 0)
+    assert brd.master_touches_bottom.sum() == np.count_nonzero(brd.via_stop_layer_master == bottom_idx)
+
+    print(f"[MAIN] brd.master_touches_top: {brd.master_touches_top}")
+    print(f"[MAIN] brd.master_touches_bottom: {brd.master_touches_bottom}")
+
     # --- 4) R computation ---
-    res_matrix = main_res(brd=brd)
+    # res_matrix = main_res(brd=brd)
     
     # --- 5) Z computation ---
     z = brd.calc_z_fast(res_matrix=None, verbose=True)
