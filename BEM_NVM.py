@@ -1270,13 +1270,8 @@ class PDN():
         is_decap     = np.zeros(N, dtype=bool); is_decap[decap_old2new] = True
         is_port_via  = is_ic | is_decap
 
-        # Helper: pair (+) with (−) without ever creating half-ports
+        # Helper: pair (+) with (−) without creating half-ports
         def assign_ports(indices, side="top", start_port=0):
-            """
-            indices: array/list of candidate master indices (already filtered)
-            side:    "top" or "bottom"
-            returns: next_port_number (int)
-            """
             port = int(start_port)
             pwr_bucket, gnd_bucket = [], []
             for i in indices:
@@ -1284,7 +1279,6 @@ class PDN():
                     pwr_bucket.append(i)
                 else:                 # GND
                     gnd_bucket.append(i)
-                # Commit pairs as long as both buckets have members
                 while pwr_bucket and gnd_bucket:
                     pi = pwr_bucket.pop(0)
                     gi = gnd_bucket.pop(0)
@@ -1295,37 +1289,39 @@ class PDN():
                         bot_port_num[pi] = [port]
                         bot_port_num[gi] = [port]
                     port += 1
-            # Leftovers are intentionally NOT made into half-ports
-            return port
+            return port  # leftovers intentionally not made into ports
 
         port_num = 0
 
-        # --- IC port on TOP as port 0 (only if both +/− exist on top) ---
-        ic_top      = np.where(is_ic & touch_top)[0]
-        ic_top_p    = ic_top[via_type[ic_top] == 1]
-        ic_top_g    = ic_top[via_type[ic_top] == 0]
+        # --- IC port on TOP as a single many-to-one port 0 (if both +/− exist on top) ---
+        ic_top   = np.where(is_ic & touch_top)[0]
+        ic_top_p = ic_top[via_type[ic_top] == 1]
+        ic_top_g = ic_top[via_type[ic_top] == 0]
         if ic_top_p.size and ic_top_g.size:
-            top_port_num[int(ic_top_p[0])] = [port_num]
-            top_port_num[int(ic_top_g[0])] = [port_num]
+            # map ALL IC-top pins (both + and −) to port 0
+            for i in ic_top:
+                top_port_num[int(i)] = [port_num]
+            # group them so org_merge_pdn builds one shared node for the IC pad cluster
+            top_port_grp[ic_top] = 0
             port_num += 1
-        # (Any extra IC pins beyond one pair will be paired below together with decaps.)
+        # (If you ever have an IC on bottom, mirror the logic with bot_port_num/bot_port_grp.)
 
-        # --- Decap ports on TOP (if any) ---
+        # --- Decap ports on TOP (rare but supported) ---
         decap_top = np.where(is_decap & touch_top)[0]
         port_num  = assign_ports(decap_top, side="top", start_port=port_num)
 
-        # --- Decap ports on BOTTOM (most common) ---
+        # --- Decap ports on BOTTOM (common case) ---
         decap_bot = np.where(is_decap & touch_bottom)[0]
         port_num  = assign_ports(decap_bot, side="bottom", start_port=port_num)
 
-        # (Optional but recommended) WARN if any port vias were left unpaired
+        # (Optional) warn about unpaired port candidates (left in the network, just not ports)
         def _unpaired(which, arr):
-            idx = np.where((is_port_via & which) & (np.array([a[0] for a in arr]) == -1))[0]
-            return idx.tolist()
+            # arr is list-of-1 arrays like [[-1], [3], ...]
+            return np.where((is_port_via & which) & (np.array([a[0] for a in arr]) == -1))[0].tolist()
 
         unpaired_top = _unpaired(touch_top,    top_port_num)
         unpaired_bot = _unpaired(touch_bottom, bot_port_num)
-        if len(unpaired_top) or len(unpaired_bot):
+        if unpaired_top or unpaired_bot:
             print(f"[PDN WARN] Unpaired candidate port vias (top={unpaired_top}, bottom={unpaired_bot}). "
                 "They will not form ports (by design).")
 
